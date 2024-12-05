@@ -435,6 +435,12 @@ impl Command {
         parameters: &[String],
         json: bool,
     ) -> Result<Box<dyn Output>> {
+        if let Ok(node_status) = client.public.get_status().await {
+            if node_status.chain_id != client.chain_id {
+                client_warning!("the chain id of the node is different from the one of the client");
+            }
+        }
+
         match self {
             Command::help => {
                 if !json {
@@ -860,7 +866,7 @@ impl Command {
                             if let Ok(addresses_info) =
                                 client.public.get_addresses(vec![addr]).await
                             {
-                                match addresses_info.get(0) {
+                                match addresses_info.first() {
                                     Some(info) => {
                                         if info.candidate_balance < total {
                                             client_warning!("this operation may be rejected due to insufficient balance");
@@ -905,7 +911,7 @@ impl Command {
 
                 if !json {
                     if let Ok(addresses_info) = client.public.get_addresses(vec![addr]).await {
-                        match addresses_info.get(0) {
+                        match addresses_info.first() {
                             Some(info) => {
                                 if info.candidate_balance < fee
                                     || roll_count > info.candidate_roll_count
@@ -942,7 +948,7 @@ impl Command {
 
                 if !json {
                     if let Ok(addresses_info) = client.public.get_addresses(vec![addr]).await {
-                        match addresses_info.get(0) {
+                        match addresses_info.first() {
                             Some(info) => {
                                 if info.candidate_balance < fee {
                                     client_warning!("this operation may be rejected due to insufficient balance");
@@ -988,7 +994,7 @@ impl Command {
                 let fee = parameters[4].parse::<Amount>()?;
                 if !json {
                     if let Ok(addresses_info) = client.public.get_addresses(vec![addr]).await {
-                        match addresses_info.get(0) {
+                        match addresses_info.first() {
                             Some(info) => {
                                 if info.candidate_balance < fee.saturating_add(max_coins) {
                                     client_warning!("this operation may be rejected due to insufficient balance");
@@ -1046,7 +1052,7 @@ impl Command {
                             if let Ok(addresses_info) =
                                 client.public.get_addresses(vec![target_addr]).await
                             {
-                                match addresses_info.get(0) {
+                                match addresses_info.first() {
                                     Some(info) => {
                                         if info.candidate_balance < total {
                                             client_warning!("this operation may be rejected due to insufficient balance");
@@ -1354,16 +1360,27 @@ async fn send_operation(
     addr: Address,
     json: bool,
 ) -> Result<Box<dyn Output>> {
-    let cfg = match client.public.get_status().await {
+    let status = match client.public.get_status().await {
         Ok(node_status) => node_status,
         Err(e) => rpc_error!(e),
-    }
-    .config;
+    };
 
-    let slot = get_current_latest_block_slot(cfg.thread_count, cfg.t0, cfg.genesis_timestamp)?
-        .unwrap_or_else(|| Slot::new(0, 0));
-    let mut expire_period = slot.period + cfg.operation_validity_periods;
-    if slot.thread >= addr.get_thread(cfg.thread_count) {
+    // check if the fee is higher than the minimal fees of the node
+    if fee.checked_sub(status.minimal_fees).is_none() {
+        bail!(format!(
+            "fee is too low provided: {} , minimal_fees required: {}",
+            fee, status.minimal_fees
+        ));
+    }
+
+    let slot = get_current_latest_block_slot(
+        status.config.thread_count,
+        status.config.t0,
+        status.config.genesis_timestamp,
+    )?
+    .unwrap_or_else(|| Slot::new(0, 0));
+    let mut expire_period = slot.period + status.config.operation_validity_periods;
+    if slot.thread >= addr.get_thread(status.config.thread_count) {
         expire_period += 1;
     };
 

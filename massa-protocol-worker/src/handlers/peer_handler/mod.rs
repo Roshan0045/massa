@@ -23,7 +23,7 @@ use peernet::{
     peer::InitConnectionHandler,
     transports::{endpoint::Endpoint, TransportType},
 };
-use tracing::log::{debug, error, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::context::Context;
 use crate::handlers::peer_handler::models::PeerState;
@@ -56,12 +56,17 @@ mod tester;
 
 pub(crate) use messages::{PeerManagementMessage, PeerManagementMessageSerializer};
 
+#[allow(dead_code)]
 pub struct PeerManagementHandler {
     pub peer_db: SharedPeerDB,
     pub thread_join: Option<JoinHandle<()>>,
     pub sender: PeerManagementChannel,
     testers: Vec<Tester>,
 }
+
+// protocol-peer-handler
+const THREAD_NAME: &str = "pph";
+static_assertions::const_assert!(THREAD_NAME.len() < 16);
 
 impl PeerManagementHandler {
     #[allow(clippy::too_many_arguments)]
@@ -97,7 +102,7 @@ impl PeerManagementHandler {
         );
 
         let thread_join = std::thread::Builder::new()
-        .name("protocol-peer-handler".to_string())
+        .name(THREAD_NAME.to_string())
         .spawn({
             let peer_db = peer_db.clone();
             let ticker = tick(Duration::from_secs(10));

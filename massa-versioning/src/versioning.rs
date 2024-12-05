@@ -1096,10 +1096,11 @@ impl MipStoreRaw {
                 self.stats.config.block_count_considered as u64,
             );
 
-            debug!("[VERSIONING STATS] vote_ratio = {} (from version counter = {} and blocks considered = {})",
-                vote_ratio,
+            debug!("[VERSIONING STATS] Vote counts / blocks considered = {} / {} (for MipInfo with network version {} - {})",
                 network_version_count,
-                self.stats.config.block_count_considered);
+                self.stats.config.block_count_considered,
+                mi.version,
+                mi.name);
 
             let advance_msg = Advance {
                 start_timestamp: mi.start,
@@ -1122,7 +1123,7 @@ impl MipStoreRaw {
             .iter()
             .rev()
             .filter(|(mi, ms)| {
-                mi.components.get(component).is_some()
+                mi.components.contains_key(component)
                     && matches!(ms.state, ComponentState::Active(_))
             })
             .find_map(|(mi, ms)| {
@@ -2544,6 +2545,7 @@ mod test {
             max_final_state_elements_size: 100_000,
             max_versioning_elements_size: 100_000,
             thread_count: THREAD_COUNT,
+            max_ledger_backups: 10,
         };
         let db = Arc::new(RwLock::new(
             Box::new(MassaDB::new(db_config)) as Box<(dyn MassaDBController + 'static)>

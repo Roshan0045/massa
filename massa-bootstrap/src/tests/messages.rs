@@ -14,7 +14,7 @@ use massa_serialization::{DeserializeError, Deserializer, Serializer};
 #[test]
 fn test_serialize_bootstrap_server_message() {
     let config = BootstrapClientConfig {
-        rate_limit: std::u64::MAX,
+        rate_limit: u64::MAX,
         max_listeners_per_peer: MAX_LISTENERS_PER_PEER as u32,
         endorsement_count: ENDORSEMENT_COUNT,
         max_advertise_length: MAX_ADVERTISE_LENGTH,
@@ -38,6 +38,7 @@ fn test_serialize_bootstrap_server_message() {
         mip_store_stats_block_considered: MIP_STORE_STATS_BLOCK_CONSIDERED,
         max_denunciations_per_block_header: MAX_DENUNCIATIONS_PER_BLOCK_HEADER,
         max_denunciation_changes_length: MAX_DENUNCIATION_CHANGES_LENGTH,
+        chain_id: *CHAINID,
     };
 
     parametric_test(
@@ -146,7 +147,7 @@ fn test_serialize_error_cases_clientmsg() {
 #[test]
 fn test_serialize_error_cases_servermsg() {
     let config = BootstrapClientConfig {
-        rate_limit: std::u64::MAX,
+        rate_limit: u64::MAX,
         max_listeners_per_peer: MAX_LISTENERS_PER_PEER as u32,
         endorsement_count: ENDORSEMENT_COUNT,
         max_advertise_length: MAX_ADVERTISE_LENGTH,
@@ -170,6 +171,7 @@ fn test_serialize_error_cases_servermsg() {
         mip_store_stats_block_considered: MIP_STORE_STATS_BLOCK_CONSIDERED,
         max_denunciations_per_block_header: MAX_DENUNCIATIONS_PER_BLOCK_HEADER,
         max_denunciation_changes_length: MAX_DENUNCIATION_CHANGES_LENGTH,
+        chain_id: *CHAINID,
     };
 
     let mut rng = rand::thread_rng();

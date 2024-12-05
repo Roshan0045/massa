@@ -7,9 +7,7 @@ use massa_models::{
     },
     secure_share::{SecureShareDeserializer, SecureShareSerializer},
 };
-use massa_serialization::{
-    Deserializer, SerializeError, Serializer, U64VarIntDeserializer, U64VarIntSerializer,
-};
+use massa_serialization::{Deserializer, Serializer, U64VarIntDeserializer, U64VarIntSerializer};
 use nom::{
     error::{context, ContextError, ParseError},
     sequence::tuple,
@@ -120,12 +118,8 @@ impl Serializer<BlockMessage> for BlockMessageSerializer {
         value: &BlockMessage,
         buffer: &mut Vec<u8>,
     ) -> Result<(), massa_serialization::SerializeError> {
-        self.id_serializer.serialize(
-            &MessageTypeId::from(value).try_into().map_err(|_| {
-                SerializeError::GeneralError(String::from("Failed to serialize id"))
-            })?,
-            buffer,
-        )?;
+        self.id_serializer
+            .serialize(&MessageTypeId::from(value).into(), buffer)?;
         match value {
             BlockMessage::Header(header) => {
                 self.secure_share_serializer.serialize(header, buffer)?;
@@ -217,18 +211,23 @@ pub struct BlockMessageDeserializerArgs {
     pub max_op_datastore_value_length: u64,
     pub max_denunciations_in_block_header: u32,
     pub last_start_period: Option<u64>,
+    pub chain_id: u64,
 }
 
 impl BlockMessageDeserializer {
     pub fn new(args: BlockMessageDeserializerArgs) -> Self {
         Self {
             id_deserializer: U64VarIntDeserializer::new(Included(0), Included(u64::MAX)),
-            block_header_deserializer: SecureShareDeserializer::new(BlockHeaderDeserializer::new(
-                args.thread_count,
-                args.endorsement_count,
-                args.max_denunciations_in_block_header,
-                args.last_start_period,
-            )),
+            block_header_deserializer: SecureShareDeserializer::new(
+                BlockHeaderDeserializer::new(
+                    args.thread_count,
+                    args.endorsement_count,
+                    args.max_denunciations_in_block_header,
+                    args.last_start_period,
+                    args.chain_id,
+                ),
+                args.chain_id,
+            ),
             block_id_deserializer: BlockIdDeserializer::new(),
             operation_ids_deserializer: OperationIdsDeserializer::new(
                 args.max_operations_per_block,
@@ -241,6 +240,7 @@ impl BlockMessageDeserializer {
                 args.max_op_datastore_entry_count,
                 args.max_op_datastore_key_length,
                 args.max_op_datastore_value_length,
+                args.chain_id,
             ),
         }
     }
@@ -269,9 +269,7 @@ impl Deserializer<BlockMessage> for BlockMessageDeserializer {
                     "Failed BlockDataRequest deserialization",
                     tuple((
                         context("Failed BlockId deserialization", |input| {
-                            self.block_id_deserializer
-                                .deserialize(input)
-                                .map(|(rest, id)| (rest, id))
+                            self.block_id_deserializer.deserialize(input)
                         }),
                         context("Failed infos deserialization", |input| {
                             let (rest, raw_id) = self.id_deserializer.deserialize(input)?;
@@ -311,9 +309,7 @@ impl Deserializer<BlockMessage> for BlockMessageDeserializer {
                     "Failed BlockDataResponse deserialization",
                     tuple((
                         context("Failed BlockId deserialization", |input| {
-                            self.block_id_deserializer
-                                .deserialize(input)
-                                .map(|(rest, id)| (rest, id))
+                            self.block_id_deserializer.deserialize(input)
                         }),
                         context("Failed infos deserialization", |input| {
                             let (rest, raw_id) = self.id_deserializer.deserialize(input)?;
@@ -360,6 +356,7 @@ impl Deserializer<BlockMessage> for BlockMessageDeserializer {
 mod tests {
     use std::str::FromStr;
 
+    use massa_models::config::CHAINID;
     use massa_models::{block_id::BlockId, operation::OperationId};
     use massa_serialization::{DeserializeError, Deserializer, Serializer};
 
@@ -386,6 +383,7 @@ mod tests {
                 max_op_datastore_value_length: 1,
                 max_denunciations_in_block_header: 1,
                 last_start_period: None,
+                chain_id: *CHAINID,
             });
         let (rest, deserialized_message) = deserializer
             .deserialize::<DeserializeError>(&buffer)
@@ -472,6 +470,7 @@ mod tests {
                 max_op_datastore_value_length: 1,
                 max_denunciations_in_block_header: 1,
                 last_start_period: None,
+                chain_id: *CHAINID,
             });
         deserializer
             .deserialize::<DeserializeError>(&buffer)
@@ -489,6 +488,7 @@ mod tests {
                 max_op_datastore_value_length: 1,
                 max_denunciations_in_block_header: 1,
                 last_start_period: None,
+                chain_id: *CHAINID,
             });
         let (rest, deserialized_message) = deserializer
             .deserialize::<DeserializeError>(&buffer)

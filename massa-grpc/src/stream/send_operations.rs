@@ -13,7 +13,7 @@ use massa_time::MassaTime;
 use std::collections::HashMap;
 use std::io::ErrorKind;
 use std::pin::Pin;
-use tracing::log::{error, warn};
+use tracing::{error, warn};
 
 /// Type declaration for SendOperations
 pub type SendOperationsStreamType = Pin<
@@ -80,15 +80,17 @@ pub(crate) async fn send_operations(
                             .await;
                         } else {
                             // Deserialize and verify each operation in the incoming message
-                            let operation_deserializer =
-                                SecureShareDeserializer::new(OperationDeserializer::new(
+                            let operation_deserializer = SecureShareDeserializer::new(
+                                OperationDeserializer::new(
                                     config.max_datastore_value_length,
                                     config.max_function_name_length,
                                     config.max_parameter_size,
                                     config.max_op_datastore_entry_count,
                                     config.max_op_datastore_key_length,
                                     config.max_op_datastore_value_length,
-                                ));
+                                ),
+                                config.chain_id,
+                            );
                             let verified_ops_res: Result<HashMap<String, SecureShareOperation>, GrpcError> = req_content.operations
                                 .into_iter()
                                 .map(|proto_operation| {
@@ -109,6 +111,12 @@ pub(crate) async fn send_operations(
                                                     return Err(GrpcError::InvalidArgument("Operation expire_period is lower than the current period of this node. Your operation will never be included in a block.".into()));
                                                 }
                                             }
+
+
+                                            if res_operation.content.fee.checked_sub(config.minimal_fees).is_none() {
+                                                return Err(GrpcError::InvalidArgument("Operation fee is lower than the minimal fee. Your operation will never be included in a block.".into()));
+                                            }
+
                                             if rest.is_empty() {
                                                 res_operation.verify_signature()
                                                     .map(|_| (res_operation.id.to_string(), res_operation))

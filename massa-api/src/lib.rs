@@ -11,6 +11,7 @@ use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::server::middleware::HostFilterLayer;
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder, ServerHandle};
 use jsonrpsee::RpcModule;
+use massa_api_exports::execution::Transfer;
 use massa_api_exports::{
     address::{AddressFilter, AddressInfo},
     block::{BlockInfo, BlockSummary},
@@ -48,6 +49,11 @@ use std::net::{IpAddr, SocketAddr};
 use std::sync::{Arc, Condvar, Mutex};
 use tower_http::cors::{Any, CorsLayer};
 use tracing::{info, warn};
+
+#[cfg(feature = "test-exports")]
+use massa_channel as _;
+#[cfg(feature = "test-exports")]
+use massa_grpc as _;
 
 mod api;
 mod api_trait;
@@ -372,6 +378,10 @@ pub trait MassaRpc {
     /// Get addresses bytecode.
     #[method(name = "get_addresses_bytecode")]
     async fn get_addresses_bytecode(&self, args: Vec<AddressFilter>) -> RpcResult<Vec<Vec<u8>>>;
+
+    /// Get all the transfers for a slot
+    #[method(name = "get_slots_transfers")]
+    async fn get_slots_transfers(&self, arg: Vec<Slot>) -> RpcResult<Vec<Vec<Transfer>>>;
 
     /// Adds operations to pool. Returns operations that were ok and sent to pool.
     #[method(name = "send_operations")]

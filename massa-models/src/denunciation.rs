@@ -89,6 +89,29 @@ impl EndorsementDenunciation {
         hash_data.extend(content_hash.to_bytes());
         Hash::compute_from(&hash_data)
     }
+
+    // Getters (for GRPC From)
+    pub fn get_public_key(&self) -> &PublicKey {
+        &self.public_key
+    }
+    pub fn get_slot(&self) -> &Slot {
+        &self.slot
+    }
+    pub fn get_index(&self) -> &u32 {
+        &self.index
+    }
+    pub fn get_hash_1(&self) -> &Hash {
+        &self.hash_1
+    }
+    pub fn get_hash_2(&self) -> &Hash {
+        &self.hash_2
+    }
+    pub fn get_signature_1(&self) -> &Signature {
+        &self.signature_1
+    }
+    pub fn get_signature_2(&self) -> &Signature {
+        &self.signature_2
+    }
 }
 
 /// A Variant of Denunciation enum for block header
@@ -119,6 +142,26 @@ impl BlockHeaderDenunciation {
         // Add content hash
         hash_data.extend(content_hash.to_bytes());
         Hash::compute_from(&hash_data)
+    }
+
+    // Getters (for GRPC From)
+    pub fn get_public_key(&self) -> &PublicKey {
+        &self.public_key
+    }
+    pub fn get_slot(&self) -> &Slot {
+        &self.slot
+    }
+    pub fn get_hash_1(&self) -> &Hash {
+        &self.hash_1
+    }
+    pub fn get_hash_2(&self) -> &Hash {
+        &self.hash_2
+    }
+    pub fn get_signature_1(&self) -> &Signature {
+        &self.signature_1
+    }
+    pub fn get_signature_2(&self) -> &Signature {
+        &self.signature_2
     }
 }
 
@@ -1195,7 +1238,7 @@ mod tests {
     use massa_signature::KeyPair;
 
     use crate::block_id::BlockId;
-    use crate::config::{ENDORSEMENT_COUNT, THREAD_COUNT};
+    use crate::config::{CHAINID, ENDORSEMENT_COUNT, THREAD_COUNT};
     use crate::endorsement::{Endorsement, EndorsementSerializer, SecureShareEndorsement};
     use crate::secure_share::{Id, SecureShareContent};
 
@@ -1225,9 +1268,13 @@ mod tests {
             index: 9,
             endorsed_block: BlockId::generate_from_hash(Hash::compute_from("foo".as_bytes())),
         };
-        let s_endorsement_4 =
-            Endorsement::new_verifiable(endorsement_4, EndorsementSerializer::new(), &keypair)
-                .unwrap();
+        let s_endorsement_4 = Endorsement::new_verifiable(
+            endorsement_4,
+            EndorsementSerializer::new(),
+            &keypair,
+            *CHAINID,
+        )
+        .unwrap();
 
         let denunciation = Denunciation::try_from((&s_endorsement_1, &s_endorsement_4));
 
@@ -1261,9 +1308,13 @@ mod tests {
             index: 9,
             endorsed_block: BlockId::generate_from_hash(Hash::compute_from("foo".as_bytes())),
         };
-        let s_endorsement_4 =
-            Endorsement::new_verifiable(endorsement_4, EndorsementSerializer::new(), &keypair)
-                .unwrap();
+        let s_endorsement_4 = Endorsement::new_verifiable(
+            endorsement_4,
+            EndorsementSerializer::new(),
+            &keypair,
+            *CHAINID,
+        )
+        .unwrap();
 
         assert!(!denunciation
             .is_also_for_endorsement(&s_endorsement_4)
@@ -1300,9 +1351,13 @@ mod tests {
             endorsed_block: BlockId::generate_from_hash(Hash::compute_from("blk1".as_bytes())),
         };
 
-        let s_endorsement_1: SecureShareEndorsement =
-            Endorsement::new_verifiable(endorsement_1, EndorsementSerializer::new(), &keypair)
-                .unwrap();
+        let s_endorsement_1: SecureShareEndorsement = Endorsement::new_verifiable(
+            endorsement_1,
+            EndorsementSerializer::new(),
+            &keypair,
+            *CHAINID,
+        )
+        .unwrap();
 
         let endorsement_2 = Endorsement {
             slot: slot_2,
@@ -1310,9 +1365,13 @@ mod tests {
             endorsed_block: BlockId::generate_from_hash(Hash::compute_from("blk2".as_bytes())),
         };
 
-        let s_endorsement_2: SecureShareEndorsement =
-            Endorsement::new_verifiable(endorsement_2, EndorsementSerializer::new(), &keypair)
-                .unwrap();
+        let s_endorsement_2: SecureShareEndorsement = Endorsement::new_verifiable(
+            endorsement_2,
+            EndorsementSerializer::new(),
+            &keypair,
+            *CHAINID,
+        )
+        .unwrap();
 
         // from an attacker - building manually a Denunciation object
         let de_forged_1 = Denunciation::Endorsement(EndorsementDenunciation {

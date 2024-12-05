@@ -4,6 +4,9 @@ on:
   push:
     tags:
       - TEST.*
+      - DEVN.*
+      - MAIN.*
+      - SECU.*
 
 env:
   CARGO_TERM_COLOR: always
@@ -52,7 +55,7 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.74.0
+          toolchain: 1.81.0
           target: ${{ matrix.target }}
           override: true
       - uses: Swatinem/rust-cache@v2
@@ -92,7 +95,49 @@ jobs:
             tar czvf massa_${GITHUB_REF/refs\/tags\//}_${{ matrix.name }} massa
           fi
           cd -
-      - name: Publish
+      - name: Upload ${{ matrix.os }}_${{ matrix.platform }} artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: massa_artifacts_${{ matrix.name }}
+          path: |
+            massa_*.zip
+            massa_*.tar.gz
+          if-no-files-found: error
+      - name: Publish ${{ matrix.os }}_${{ matrix.platform }} artifacts
         uses: softprops/action-gh-release@v1
         with:
-          files: 'massa_*'
+          files: |
+            massa_*.zip
+            massa_*.tar.gz
+
+  checksum:
+    needs: release
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Move all artifacts to workspace
+        run: |
+          source_directory="artifacts"
+          release_directory="${{ github.workspace }}"
+          zip_pattern="massa_*.zip"
+          tar_pattern="massa_*.tar.gz"
+
+          mkdir -p "$release_directory"
+          find "$source_directory" -type f \( -name "$zip_pattern" -o -name "$tar_pattern" \) -exec mv -t "$release_directory" {} +
+      - name: Generate checksums file
+        uses: jmgilman/actions-generate-checksum@v1
+        with:
+          method: sha256
+          patterns: |
+            massa_*.zip
+            massa_*.tar.gz
+          output: checksums.txt
+      - name: Publish checksums file
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            checksums.txt

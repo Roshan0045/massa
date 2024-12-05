@@ -12,7 +12,7 @@ use massa_db_exports::{MassaDBConfig, MassaDBController};
 use massa_db_worker::MassaDB;
 use massa_final_state::FinalStateConfig;
 use massa_models::config::{
-    BOOTSTRAP_RANDOMNESS_SIZE_BYTES, CONSENSUS_BOOTSTRAP_PART_SIZE, ENDORSEMENT_COUNT,
+    BOOTSTRAP_RANDOMNESS_SIZE_BYTES, CHAINID, CONSENSUS_BOOTSTRAP_PART_SIZE, ENDORSEMENT_COUNT,
     MAX_ADVERTISE_LENGTH, MAX_BOOTSTRAP_BLOCKS, MAX_BOOTSTRAP_ERROR_LENGTH,
     MAX_BOOTSTRAP_FINAL_STATE_PARTS_SIZE, MAX_BOOTSTRAP_VERSIONING_ELEMENTS_SIZE,
     MAX_DATASTORE_ENTRY_COUNT, MAX_DATASTORE_KEY_LENGTH, MAX_DATASTORE_VALUE_LENGTH,
@@ -59,7 +59,7 @@ impl BootstrapClientBinder {
     }
     pub(crate) fn test_default_config() -> BootstrapClientConfig {
         BootstrapClientConfig {
-            rate_limit: std::u64::MAX,
+            rate_limit: u64::MAX,
             max_listeners_per_peer: MAX_LISTENERS_PER_PEER as u32,
             endorsement_count: ENDORSEMENT_COUNT,
             max_advertise_length: MAX_ADVERTISE_LENGTH,
@@ -83,6 +83,7 @@ impl BootstrapClientBinder {
             mip_store_stats_block_considered: MIP_STORE_STATS_BLOCK_CONSIDERED,
             max_denunciations_per_block_header: MAX_DENUNCIATIONS_PER_BLOCK_HEADER,
             max_denunciation_changes_length: MAX_DENUNCIATION_CHANGES_LENGTH,
+            chain_id: *CHAINID,
         }
     }
 }
@@ -130,7 +131,7 @@ fn init_server_client_pair() -> (BootstrapServerBinder, BootstrapClientBinder) {
         server.0,
         server_keypair.clone(),
         BootstrapSrvBindCfg {
-            rate_limit: std::u64::MAX,
+            rate_limit: u64::MAX,
             thread_count: THREAD_COUNT,
             max_datastore_key_length: MAX_DATASTORE_KEY_LENGTH,
             randomness_size_bytes: BOOTSTRAP_RANDOMNESS_SIZE_BYTES,
@@ -449,6 +450,7 @@ fn test_staying_connected_without_message_trigger_read_timeout() {
         max_final_state_elements_size: 100_000_000,
         max_versioning_elements_size: 100_000_000,
         thread_count: THREAD_COUNT,
+        max_ledger_backups: 10,
     }))
         as Box<(dyn MassaDBController + 'static)>));
     let rolls_path = PathBuf::from_str("../massa-node/base_config/initial_rolls.json").unwrap();
@@ -546,6 +548,7 @@ fn test_staying_connected_pass_handshake_but_deadline_after() {
         max_final_state_elements_size: 100_000_000,
         max_versioning_elements_size: 100_000_000,
         thread_count: THREAD_COUNT,
+        max_ledger_backups: 10,
     }))
         as Box<(dyn MassaDBController + 'static)>));
     let rolls_path = PathBuf::from_str("../massa-node/base_config/initial_rolls.json").unwrap();
@@ -643,6 +646,7 @@ fn test_staying_connected_pass_handshake_but_deadline_during_data_exchange() {
         max_final_state_elements_size: 100_000_000,
         max_versioning_elements_size: 100_000_000,
         thread_count: THREAD_COUNT,
+        max_ledger_backups: 10,
     }))
         as Box<(dyn MassaDBController + 'static)>));
     let rolls_path = PathBuf::from_str("../massa-node/base_config/initial_rolls.json").unwrap();

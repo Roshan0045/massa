@@ -2,8 +2,8 @@
     "openrpc": "1.2.4",
     "info": {
         "title": "Massa OpenRPC Specification",
-        "version": "TEST.26.1",
-        "description": "Massa OpenRPC Specification document. Find more information on https://docs.massa.net/en/latest/technical-doc/api.html",
+        "version": "MAIN.2.4",
+        "description": "Massa OpenRPC Specification document. Find more information on https://docs.massa.net/docs/build/api/jsonrpc",
         "termsOfService": "https://open-rpc.org",
         "contact": {
             "name": "Massa Team",
@@ -21,6 +21,11 @@
             "name": "Massa public testnet API",
             "url": "https://test.massa.net/api/v2",
             "description": "Massa public testnet url"
+        },
+        {
+            "name": "Massa public mainnet API",
+            "url": "https://mainnet.massa.net/api/v2",
+            "description": "Massa public mainnet url"
         }
     ],
     "methods": [
@@ -49,7 +54,7 @@
                         "$ref": "#/components/schemas/ExecuteReadOnlyResponse"
                     }
                 },
-                "name": "ExecuteReadOnlyResponse(s)"
+                "name": "ExecuteReadOnlyResponses"
             },
             "name": "execute_read_only_bytecode",
             "summary": "Execute a smart contract in a read only context",
@@ -80,7 +85,7 @@
                         "$ref": "#/components/schemas/ExecuteReadOnlyResponse"
                     }
                 },
-                "name": "ExecuteReadOnlyResponse(s)"
+                "name": "ExecuteReadOnlyResponses"
             },
             "name": "execute_read_only_call",
             "summary": "Call a function of a contract in a read only context",
@@ -107,13 +112,13 @@
                 }
             ],
             "result": {
+                "name": "AddressInfo",
                 "schema": {
                     "type": "array",
                     "items": {
                         "$ref": "#/components/schemas/AddressInfo"
                     }
-                },
-                "name": "AddressInfo(s)"
+                }
             },
             "name": "get_addresses",
             "summary": "To check when your address is selected to stake.",
@@ -128,9 +133,10 @@
             ],
             "params": [
                 {
-                    "name": "address filter",
+                    "name": "addressFilter",
                     "description": "Need to provide at least one valid address filter",
                     "schema": {
+                        "title": "Address list",
                         "type": "array",
                         "items": {
                             "$ref": "#/components/schemas/AddressFilter"
@@ -141,9 +147,10 @@
             ],
             "result": {
                 "schema": {
+                    "title": "Bytecode list",
                     "type": "array",
                     "items": {
-                        "type": "integer"
+                        "$ref": "#/components/schemas/Bytes"
                     }
                 },
                 "name": "Addresses bytecode array"
@@ -161,13 +168,10 @@
             ],
             "params": [
                 {
-                    "name": "blockId",
+                    "name": "blockIds",
                     "description": "Need to provide at least one valid block id",
                     "schema": {
-                        "type": "array",
-                        "items": {
-                            "$ref": "#/components/schemas/BlockId"
-                        }
+                        "$ref": "#/components/schemas/BlockIdList"
                     },
                     "summary": "string",
                     "required": true
@@ -175,13 +179,16 @@
             ],
             "result": {
                 "schema": {
-                    "$ref": "#/components/schemas/BlockInfo"
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/components/schemas/BlockInfo"
+                    }
                 },
                 "name": "BlockInfo"
             },
             "name": "get_blocks",
-            "summary": "Get block(s)",
-            "description": "Get block(s)."
+            "summary": "Get blocks",
+            "description": "Get blocks."
         },
         {
             "tags": [
@@ -195,7 +202,6 @@
                     "name": "slot",
                     "description": "Slot of the block",
                     "schema": {
-                        "type": "object",
                         "$ref": "#/components/schemas/Slot"
                     },
                     "required": true
@@ -226,11 +232,11 @@
                         "$ref": "#/components/schemas/Clique"
                     }
                 },
-                "name": "Clique(s)"
+                "name": "Cliques"
             },
             "name": "get_cliques",
             "summary": "Get cliques",
-            "description": "Returns informations about cliques."
+            "description": "Returns information about cliques."
         },
         {
             "tags": [
@@ -241,7 +247,7 @@
             ],
             "params": [
                 {
-                    "name": "DatastoreEntryInput(s)",
+                    "name": "DatastoreEntryInputs",
                     "description": "Datastore entry input",
                     "schema": {
                         "type": "array",
@@ -258,7 +264,7 @@
                         "$ref": "#/components/schemas/DataStoreEntryOutput"
                     }
                 },
-                "name": "DataStoreEntryOutput(s)"
+                "name": "DataStoreEntryOutputs"
             },
             "name": "get_datastore_entries",
             "summary": "Get a data entry both at the latest final and active executed slots for the given addresses.",
@@ -273,30 +279,32 @@
             ],
             "params": [
                 {
-                    "name": "key",
+                    "name": "slots",
+                    "description": "Precise the slots you want to gather the transfers from",
                     "schema": {
-                        "type": "string"
-                    },
-                    "required": true
-                },
-                {
-                    "name": "address",
-                    "schema": {
-                        "$ref": "#/components/schemas/Address"
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Slot"
+                        }
                     },
                     "required": true
                 }
             ],
             "result": {
+                "name": "SlotsTransfers",
                 "schema": {
-                    "$ref": "#/components/schemas/DataStoreEntry"
-                },
-                "name": "DataStoreEntry"
+                    "type": "array",
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Transfer"
+                        }
+                    }
+                }
             },
-            "deprecated": true,
-            "name": "get_datastore_entry",
-            "summary": "Get datastore entry",
-            "description": "Get datastore entry."
+            "name": "get_slots_transfers",
+            "summary": "Get transfers for specified slots",
+            "description": "Get transfers for specified slots"
         },
         {
             "tags": [
@@ -312,7 +320,7 @@
                     "schema": {
                         "type": "array",
                         "items": {
-                            "type": "string"
+                            "$ref": "#/components/schemas/EndorsementId"
                         }
                     },
                     "required": true
@@ -325,7 +333,7 @@
                         "$ref": "#/components/schemas/EndorsementInfo"
                     }
                 },
-                "name": "EndorsementInfo(s)"
+                "name": "EndorsementInfos"
             },
             "name": "get_endorsements",
             "summary": "Get endorsements",
@@ -348,12 +356,13 @@
             ],
             "result": {
                 "schema": {
+                    "title": "Output events",
                     "type": "array",
                     "items": {
                         "$ref": "#/components/schemas/SCOutputEvent"
                     }
                 },
-                "name": "SCOutputEvent(s)"
+                "name": "SCOutputEvents"
             },
             "name": "get_filtered_sc_output_event",
             "summary": "Returns events optionally filtered",
@@ -368,23 +377,27 @@
             ],
             "params": [
                 {
-                    "name": "end",
+                    "name": "TimeInterval",
                     "schema": {
-                        "type": "number"
-                    },
-                    "required": false
-                },
-                {
-                    "name": "start",
-                    "schema": {
-                        "type": "number"
-                    },
-                    "required": false
+                        "type": "object",
+                        "properties": {
+                            "start": {
+                                "type": "number"
+                            },
+                            "end": {
+                                "type": "number"
+                            }
+                        },
+                        "additionalProperties": false
+                    }
                 }
             ],
             "result": {
                 "schema": {
-                    "$ref": "#/components/schemas/GraphInterval"
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/components/schemas/GraphInterval"
+                    }
                 },
                 "name": "GraphInterval"
             },
@@ -406,7 +419,7 @@
                     "schema": {
                         "type": "array",
                         "items": {
-                            "type": "string"
+                            "$ref": "#/components/schemas/OperationId"
                         }
                     },
                     "required": true
@@ -419,7 +432,7 @@
                         "$ref": "#/components/schemas/OperationInfo"
                     }
                 },
-                "name": "OperationInfo(s)"
+                "name": "OperationInfos"
             },
             "name": "get_operations",
             "summary": "Get operations",
@@ -513,12 +526,11 @@
                 "schema": {
                     "type": "array",
                     "items": {
-                        "description": "Address",
                         "$ref": "#/components/schemas/Address"
                     }
                 },
                 "description": "The strings are addresses.",
-                "name": "Address(es)"
+                "name": "Addresses"
             },
             "name": "get_staking_addresses",
             "summary": "Return hashset of staking addresses",
@@ -534,13 +546,9 @@
             "params": [
                 {
                     "name": "ip",
-                    "description": "The strings must be IP address(es)",
+                    "description": "The strings must be IP addresses",
                     "schema": {
-                        "type": "array",
-                        "items": {
-                            "description": "Ip address",
-                            "type": "string"
-                        }
+                        "$ref": "#/components/schemas/IpAddressList"
                     },
                     "required": true
                 }
@@ -551,8 +559,8 @@
                 "schema": false
             },
             "name": "node_add_to_bootstrap_blacklist",
-            "summary": "Add to bootstrap blacklist given IP address(es)",
-            "description": "Add to bootstrap blacklist given IP address(es)."
+            "summary": "Add to bootstrap blacklist given IP addresses",
+            "description": "Add to bootstrap blacklist given IP addresses."
         },
         {
             "tags": [
@@ -564,13 +572,9 @@
             "params": [
                 {
                     "name": "ip",
-                    "description": "The strings must be IP address(es)",
+                    "description": "The strings must be IP addresses",
                     "schema": {
-                        "type": "array",
-                        "items": {
-                            "description": "Ip address",
-                            "type": "string"
-                        }
+                        "$ref": "#/components/schemas/IpAddressList"
                     },
                     "required": true
                 }
@@ -581,8 +585,8 @@
                 "schema": false
             },
             "name": "node_add_to_bootstrap_whitelist",
-            "summary": "Add to bootstrap whitelist given IP address(es)",
-            "description": "Add to bootstrap whitelist given IP address(es)."
+            "summary": "Add to bootstrap whitelist given IP addresses",
+            "description": "Add to bootstrap whitelist given IP addresses."
         },
         {
             "tags": [
@@ -594,13 +598,9 @@
             "params": [
                 {
                     "name": "ip",
-                    "description": "The strings must be IP address(es)",
+                    "description": "The strings must be IP addresses",
                     "schema": {
-                        "type": "array",
-                        "items": {
-                            "description": "Ip address",
-                            "type": "string"
-                        }
+                        "$ref": "#/components/schemas/IpAddressList"
                     },
                     "required": true
                 }
@@ -611,8 +611,8 @@
                 "schema": false
             },
             "name": "node_add_to_peers_whitelist",
-            "summary": "Add to peers whitelist given IP address(es)",
-            "description": "Add to peers whitelist given IP address(es)."
+            "summary": "Add to peers whitelist given IP addresses",
+            "description": "Add to peers whitelist given IP addresses."
         },
         {
             "tags": [
@@ -640,8 +640,8 @@
                 "schema": false
             },
             "name": "node_ban_by_id",
-            "summary": "Ban given id(s)",
-            "description": "Ban given id(s)."
+            "summary": "Ban given ids",
+            "description": "Ban given ids."
         },
         {
             "tags": [
@@ -655,10 +655,7 @@
                     "name": "ip",
                     "description": "The strings are IP addresses.",
                     "schema": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        }
+                        "$ref": "#/components/schemas/IpAddressList"
                     },
                     "required": true
                 }
@@ -669,8 +666,8 @@
                 "schema": false
             },
             "name": "node_ban_by_ip",
-            "summary": "Ban given IP address(es)",
-            "description": "Ban given IP address(es)."
+            "summary": "Ban given IP addresses",
+            "description": "Ban given IP addresses."
         },
         {
             "tags": [
@@ -682,18 +679,14 @@
             "params": [],
             "result": {
                 "name": "ip",
-                "description": "The strings must be IP address(es)",
+                "description": "The strings must be IP addresses",
                 "schema": {
-                    "type": "array",
-                    "items": {
-                        "description": "Ip address",
-                        "$ref": "#/components/schemas/IpAddress"
-                    }
+                    "$ref": "#/components/schemas/IpAddressList"
                 }
             },
             "name": "node_bootstrap_blacklist",
-            "summary": "Returns bootstrap blacklist IP address(es)",
-            "description": "Returns bootstrap blacklist IP address(es)."
+            "summary": "Returns bootstrap blacklist IP addresses",
+            "description": "Returns bootstrap blacklist IP addresses."
         },
         {
             "tags": [
@@ -705,18 +698,14 @@
             "params": [],
             "result": {
                 "name": "ip",
-                "description": "The strings must be IP address(es)",
+                "description": "The strings must be IP addresses",
                 "schema": {
-                    "type": "array",
-                    "items": {
-                        "description": "Ip address",
-                        "$ref": "#/components/schemas/IpAddress"
-                    }
+                    "$ref": "#/components/schemas/IpAddressList"
                 }
             },
             "name": "node_bootstrap_whitelist",
-            "summary": "Returns bootstrap whitelist IP address(es)",
-            "description": "Returns bootstrap whitelist IP address(es)."
+            "summary": "Returns bootstrap whitelist IP addresses",
+            "description": "Returns bootstrap whitelist IP addresses."
         },
         {
             "tags": [
@@ -745,18 +734,14 @@
             "params": [],
             "result": {
                 "name": "ip",
-                "description": "The strings must be IP address(es)",
+                "description": "The strings must be IP addresses",
                 "schema": {
-                    "type": "array",
-                    "items": {
-                        "description": "Ip address",
-                        "$ref": "#/components/schemas/IpAddress"
-                    }
+                    "$ref": "#/components/schemas/IpAddressList"
                 }
             },
             "name": "node_peers_whitelist",
-            "summary": "Returns peers whitelist IP address(es)",
-            "description": "Returns peers whitelist IP address(es)."
+            "summary": "Returns peers whitelist IP addresses",
+            "description": "Returns peers whitelist IP addresses."
         },
         {
             "tags": [
@@ -768,13 +753,9 @@
             "params": [
                 {
                     "name": "ip",
-                    "description": "The strings must be IP address(es)",
+                    "description": "The strings must be IP addresses",
                     "schema": {
-                        "type": "array",
-                        "items": {
-                            "description": "Ip address",
-                            "type": "string"
-                        }
+                        "$ref": "#/components/schemas/IpAddressList"
                     },
                     "required": true
                 }
@@ -785,8 +766,8 @@
                 "schema": false
             },
             "name": "node_remove_from_bootstrap_blacklist",
-            "summary": "Remove from bootstrap blacklist given IP address(es)",
-            "description": "Remove from bootstrap blacklist given IP address(es)."
+            "summary": "Remove from bootstrap blacklist given IP addresses",
+            "description": "Remove from bootstrap blacklist given IP addresses."
         },
         {
             "tags": [
@@ -798,13 +779,9 @@
             "params": [
                 {
                     "name": "ip",
-                    "description": "The strings must be IP address(es)",
+                    "description": "The strings must be IP addresses",
                     "schema": {
-                        "type": "array",
-                        "items": {
-                            "description": "Ip address",
-                            "type": "string"
-                        }
+                        "$ref": "#/components/schemas/IpAddressList"
                     },
                     "required": true
                 }
@@ -815,8 +792,8 @@
                 "schema": false
             },
             "name": "node_remove_from_bootstrap_whitelist",
-            "summary": "Remove from bootstrap whitelist given IP address(es)",
-            "description": "Remove from bootstrap whitelist given IP address(es)."
+            "summary": "Remove from bootstrap whitelist given IP addresses",
+            "description": "Remove from bootstrap whitelist given IP addresses."
         },
         {
             "tags": [
@@ -828,13 +805,9 @@
             "params": [
                 {
                     "name": "ip",
-                    "description": "The strings must be IP address(es)",
+                    "description": "The strings must be IP addresses",
                     "schema": {
-                        "type": "array",
-                        "items": {
-                            "description": "Ip address",
-                            "type": "string"
-                        }
+                        "$ref": "#/components/schemas/IpAddressList"
                     },
                     "required": true
                 }
@@ -845,8 +818,8 @@
                 "schema": false
             },
             "name": "node_remove_from_peers_whitelist",
-            "summary": "Remove from peers whitelist given IP address(es)",
-            "description": "Remove from peers whitelist given IP address(es)."
+            "summary": "Remove from peers whitelist given IP addresses",
+            "description": "Remove from peers whitelist given IP addresses."
         },
         {
             "tags": [
@@ -858,13 +831,9 @@
             "params": [
                 {
                     "name": "ip",
-                    "description": "The strings must be IP address(es)",
+                    "description": "The strings must be IP addresses",
                     "schema": {
-                        "type": "array",
-                        "items": {
-                            "description": "Ip address",
-                            "type": "string"
-                        }
+                        "$ref": "#/components/schemas/IpAddressList"
                     },
                     "required": true
                 }
@@ -875,8 +844,8 @@
                 "schema": false
             },
             "name": "node_remove_from_whitelist",
-            "summary": "Remove from whitelist given IP address(es)",
-            "description": "Remove from whitelist given IP address(es)."
+            "summary": "Remove from whitelist given IP addresses",
+            "description": "Remove from whitelist given IP addresses."
         },
         {
             "tags": [
@@ -892,7 +861,6 @@
                     "schema": {
                         "type": "array",
                         "items": {
-                            "description": "Address",
                             "$ref": "#/components/schemas/Address"
                         }
                     },
@@ -920,8 +888,7 @@
                     "name": "message",
                     "description": "Message to be signed in byte array",
                     "schema": {
-                        "format": "byte",
-                        "type": "array"
+                        "$ref": "#/components/schemas/Bytes"
                     },
                     "required": true
                 }
@@ -967,8 +934,7 @@
                     "schema": {
                         "type": "array",
                         "items": {
-                            "description": "Ip address",
-                            "type": "string"
+                            "$ref": "#/components/schemas/IpAddress"
                         }
                     },
                     "required": true
@@ -980,8 +946,8 @@
                 "schema": false
             },
             "name": "node_unban_by_id",
-            "summary": "Unban given id(s)",
-            "description": "Unban given id(s)."
+            "summary": "Unban given ids",
+            "description": "Unban given ids."
         },
         {
             "tags": [
@@ -995,11 +961,7 @@
                     "name": "ip",
                     "description": "The strings are IP addresses.",
                     "schema": {
-                        "type": "array",
-                        "items": {
-                            "description": "Ip address",
-                            "type": "string"
-                        }
+                        "$ref": "#/components/schemas/IpAddressList"
                     },
                     "required": true
                 }
@@ -1010,8 +972,8 @@
                 "schema": false
             },
             "name": "node_unban_by_ip",
-            "summary": "Unban given IP address(es)",
-            "description": "Unban given IP address(es)."
+            "summary": "Unban given IP addresses",
+            "description": "Unban given IP addresses."
         },
         {
             "tags": [
@@ -1023,13 +985,9 @@
             "params": [
                 {
                     "name": "ip",
-                    "description": "The strings must be IP address(es)",
+                    "description": "The strings must be IP addresses",
                     "schema": {
-                        "type": "array",
-                        "items": {
-                            "description": "ip address",
-                            "type": "string"
-                        }
+                        "$ref": "#/components/schemas/IpAddressList"
                     },
                     "required": true
                 }
@@ -1040,8 +998,8 @@
                 "schema": false
             },
             "name": "node_whitelist",
-            "summary": "Whitelist given IP address(es)",
-            "description": "Whitelist given IP address(es)."
+            "summary": "Whitelist given IP addresses",
+            "description": "Whitelist given IP addresses."
         },
         {
             "tags": [
@@ -1058,7 +1016,8 @@
                         "items": {
                             "$ref": "#/components/schemas/OperationInput"
                         }
-                    }
+                    },
+                    "required": true
                 }
             ],
             "result": {
@@ -1068,7 +1027,7 @@
                         "$ref": "#/components/schemas/OperationId"
                     }
                 },
-                "name": "Operation(s)"
+                "name": "Operations"
             },
             "name": "send_operations",
             "summary": "Adds operations to pool",
@@ -1404,22 +1363,55 @@
     "components": {
         "schemas": {
             "Address": {
+                "title": "Address",
                 "description": "Address",
                 "type": "string"
             },
+            "AddressOption": {
+                "title": "Address Option",
+                "description": "Address",
+                "oneOf": [
+                    {
+                        "type": "null"
+                    },
+                    {
+                        "$ref": "#/components/schemas/Address"
+                    }
+                ]
+            },
+            "Bytes": {
+                "title": "Bytes",
+                "description": "Byte array",
+                "type": "array",
+                "items": {
+                    "type": "integer"
+                }
+            },
+            "BytesOption": {
+                "title": "Bytes Option",
+                "description": "Byte array",
+                "oneOf": [
+                    {
+                        "type": "null"
+                    },
+                    {
+                        "$ref": "#/components/schemas/Bytes"
+                    }
+                ]
+            },
             "AddressFilter": {
+                "title": "AddressFilter",
                 "description": "Address filter",
                 "type": "object",
                 "properties": {
                     "address": {
-                        "$ref": "#/components/schemas/Address",
-                        "description": "The address"
+                        "$ref": "#/components/schemas/Address"
                     },
                     "is_final": {
-                        "type": "boolean",
-                        "description": "true means final, false means candidate"
+                        "$ref": "#/components/schemas/IsFinal"
                     }
-                }
+                },
+                "additionalProperties": false
             },
             "AddressInfo": {
                 "title": "AddressInfo",
@@ -1443,71 +1435,59 @@
                 "type": "object",
                 "properties": {
                     "address": {
-                        "$ref": "#/components/schemas/Address",
-                        "description": "The address"
+                        "$ref": "#/components/schemas/Address"
                     },
                     "thread": {
-                        "description": "The thread the address belongs to",
-                        "type": "number"
+                        "$ref": "#/components/schemas/Thread"
                     },
                     "final_balance": {
-                        "description": "The final balance",
-                        "type": "number"
+                        "$ref": "#/components/schemas/Amount"
                     },
                     "final_roll_count": {
-                        "description": "The final roll count",
-                        "type": "number"
+                        "$ref": "#/components/schemas/RollAmount"
                     },
                     "final_datastore_keys": {
-                        "description": "The final datastore keys",
+                        "title": "Datastore Keys",
                         "type": "array",
                         "items": {
-                            "type": "array",
-                            "items": {
-                                "type": "number"
-                            }
+                            "$ref": "#/components/schemas/Bytes"
                         }
                     },
                     "candidate_balance": {
-                        "description": "The candidate balance",
-                        "type": "number"
+                        "$ref": "#/components/schemas/Amount"
                     },
                     "candidate_roll_count": {
                         "description": "The candidate roll count",
-                        "type": "number"
+                        "$ref": "#/components/schemas/RollAmount"
                     },
                     "candidate_datastore_keys": {
-                        "description": "The candidate datastore keys",
+                        "title": "Datastore Keys",
                         "type": "array",
                         "items": {
-                            "type": "array",
-                            "items": {
-                                "type": "number"
-                            }
+                            "$ref": "#/components/schemas/Bytes"
                         }
                     },
                     "deferred_credits": {
-                        "description": "The deferred credits",
+                        "title": "Deferred credits",
                         "type": "array",
                         "items": {
                             "type": "object",
                             "properties": {
                                 "slot": {
-                                    "$ref": "#/components/schemas/Slot",
-                                    "type": "object"
+                                    "$ref": "#/components/schemas/Slot"
                                 },
                                 "amount": {
-                                    "type": "number"
+                                    "$ref": "#/components/schemas/Amount"
                                 }
                             }
-                        }
+                        },
+                        "minItems": 0
                     },
                     "next_block_draws": {
                         "description": "The next block draws",
                         "type": "array",
                         "items": {
-                            "$ref": "#/components/schemas/Slot",
-                            "type": "object"
+                            "$ref": "#/components/schemas/Slot"
                         }
                     },
                     "next_endorsement_draws": {
@@ -1517,8 +1497,7 @@
                             "type": "object",
                             "properties": {
                                 "slot": {
-                                    "$ref": "#/components/schemas/Slot",
-                                    "type": "object"
+                                    "$ref": "#/components/schemas/Slot"
                                 },
                                 "index": {
                                     "type": "number"
@@ -1528,28 +1507,37 @@
                     },
                     "created_blocks": {
                         "description": "BlockIds of created blocks",
-                        "type": "string"
+                        "$ref": "#/components/schemas/BlockIdList",
+                        "minItems": 0
                     },
                     "created_operations": {
                         "description": "OperationIds of created operations",
-                        "type": "string"
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/OperationId"
+                        },
+                        "minItems": 0
                     },
                     "created_endorsements": {
                         "description": "EndorsementIds of created endorsements",
-                        "type": "string"
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/EndorsementId"
+                        },
+                        "minItems": 0
                     },
                     "cycle_infos": {
                         "description": "Cycle infos",
                         "type": "array",
                         "items": {
-                            "$ref": "#/components/schemas/ExecutionAddressCycleInfo",
-                            "type": "object"
+                            "$ref": "#/components/schemas/ExecutionAddressCycleInfo"
                         }
                     }
                 },
                 "additionalProperties": false
             },
             "ApiRequest": {
+                "title": "ApiRequest",
                 "description": "ApiRequest for apiV2",
                 "type": "object",
                 "properties": {
@@ -1557,7 +1545,8 @@
                         "$ref": "#/components/schemas/PageRequest",
                         "description": "Optional page request"
                     }
-                }
+                },
+                "additionalProperties": false
             },
             "Balance": {
                 "title": "Balance",
@@ -1569,16 +1558,13 @@
                 "type": "object",
                 "properties": {
                     "candidate_balance": {
-                        "description": "Represent an Amount in coins",
-                        "type": "string"
+                        "$ref": "#/components/schemas/Amount"
                     },
                     "final_balance": {
-                        "description": "Represent an Amount in coins",
-                        "type": "string"
+                        "$ref": "#/components/schemas/Amount"
                     },
                     "locked_balance": {
-                        "description": "Represent an Amount in coins",
-                        "type": "string"
+                        "$ref": "#/components/schemas/Amount"
                     }
                 },
                 "additionalProperties": false
@@ -1599,15 +1585,24 @@
                         "description": "Operations",
                         "type": "array",
                         "items": {
-                            "type": "string"
+                            "$ref": "#/components/schemas/OperationId"
                         }
                     }
                 },
                 "additionalProperties": false
             },
             "BlockId": {
+                "title": "BlockId",
                 "description": "Block identifier",
                 "type": "string"
+            },
+            "BlockIdList": {
+                "title": "BlockIdList",
+                "description": "Block ids",
+                "type": "array",
+                "items": {
+                    "$ref": "#/components/schemas/BlockId"
+                }
             },
             "BlockInfo": {
                 "title": "BlockInfo",
@@ -1617,7 +1612,7 @@
                 "type": "object",
                 "properties": {
                     "id": {
-                        "type": "string"
+                        "$ref": "#/components/schemas/BlockId"
                     },
                     "content": {
                         "$ref": "#/components/schemas/BlockInfoContent"
@@ -1631,21 +1626,21 @@
                     "block",
                     "is_final",
                     "is_in_blockclique",
-                    "is_stale"
+                    "is_candidate"
                 ],
                 "type": "object",
                 "properties": {
                     "is_final": {
-                        "description": "true if final",
-                        "type": "boolean"
+                        "$ref": "#/components/schemas/IsFinal"
                     },
-                    "is_stale": {
-                        "description": "true if incompatible with a final block",
-                        "type": "boolean"
+                    "is_candidate": {
+                        "$ref": "#/components/schemas/IsCandidate"
+                    },
+                    "is_discarded": {
+                        "$ref": "#/components/schemas/IsDiscarded"
                     },
                     "is_in_blockclique": {
-                        "description": "true if in the greatest clique",
-                        "type": "boolean"
+                        "$ref": "#/components/schemas/IsInBlockClique"
                     },
                     "block": {
                         "$ref": "#/components/schemas/Block",
@@ -1665,7 +1660,7 @@
                             "$ref": "#/components/schemas/BlockId"
                         },
                         "period": {
-                            "type": "number"
+                            "$ref": "#/components/schemas/Period"
                         }
                     }
                 },
@@ -1675,8 +1670,8 @@
                 }
             },
             "CallSC": {
-                "title": "CallSC",
-                "description": "Call Smart Contract",
+                "title": "CallSC Receipt",
+                "description": "CallSC operation receipt",
                 "required": [
                     "max_gas",
                     "param",
@@ -1687,28 +1682,28 @@
                 "type": "object",
                 "properties": {
                     "target_addr": {
-                        "$ref": "#/components/schemas/Address",
-                        "description": "Address"
+                        "$ref": "#/components/schemas/Address"
                     },
                     "target_func": {
-                        "description": "Function name",
+                        "description": "Contract Function name to call",
+                        "title": "Function name",
                         "type": "string"
                     },
                     "param": {
-                        "description": "Parameter to pass to the function",
-                        "type": "string"
+                        "description": "Serialized SC call params",
+                        "$ref": "#/components/schemas/Bytes"
                     },
                     "max_gas": {
-                        "type": "number"
+                        "$ref": "#/components/schemas/GasAmount"
                     },
                     "coins": {
-                        "description": "Amount",
-                        "type": "number"
+                        "$ref": "#/components/schemas/Amount"
                     }
                 },
                 "additionalProperties": false
             },
             "Clique": {
+                "title": "Clique",
                 "description": "Clique",
                 "required": [
                     "block_ids",
@@ -1719,10 +1714,7 @@
                 "properties": {
                     "block_ids": {
                         "description": "The block ids of the blocks in that clique",
-                        "type": "array",
-                        "items": {
-                            "$ref": "#/components/schemas/BlockId"
-                        }
+                        "$ref": "#/components/schemas/BlockIdList"
                     },
                     "fitness": {
                         "description": "Depends on descendants and endorsement count",
@@ -1732,7 +1724,8 @@
                         "description": "True if it is the clique of higher fitness",
                         "type": "boolean"
                     }
-                }
+                },
+                "additionalProperties": false
             },
             "CompactConfig": {
                 "title": "Config",
@@ -1743,25 +1736,30 @@
                     "genesis_timestamp",
                     "operation_validity_periods",
                     "periods_per_cycle",
-                    "pos_lock_cycles",
-                    "pos_lookback_cycles",
                     "roll_price",
                     "t0",
-                    "thread_count"
+                    "thread_count",
+                    "execution_stats"
                 ],
                 "type": "object",
                 "properties": {
                     "block_reward": {
-                        "description": "Represent an Amount in coins",
-                        "type": "string"
+                        "$ref": "#/components/schemas/Amount"
                     },
                     "delta_f0": {
                         "description": "Used to compute finality threshold",
                         "type": "number"
                     },
                     "end_timestamp": {
-                        "description": "(Only in tesnets)\nTime in milliseconds when the blockclique started.",
-                        "type": "number"
+                        "description": "(Only in testnets)\nTime in milliseconds when the blockclique started.",
+                        "oneOf": [
+                            {
+                                "type": "null"
+                            },
+                            {
+                                "type": "number"
+                            }
+                        ]
                     },
                     "genesis_timestamp": {
                         "description": "Time in milliseconds when the blockclique started.",
@@ -1779,17 +1777,8 @@
                         "description": "cycle duration in periods",
                         "type": "number"
                     },
-                    "pos_lock_cycles": {
-                        "description": "PoS look back cycles: when drawing for cycle N, we use the rolls from cycle N - `pos_look` `back_cycles` - 1",
-                        "type": "number"
-                    },
-                    "pos_lookback_cycles": {
-                        "description": "PoS lock cycles: when some rolls are released, we only credit the coins back to their owner after waiting `pos_lock_cycles`",
-                        "type": "number"
-                    },
                     "roll_price": {
-                        "description": "Represent an Amount in coins",
-                        "type": "string"
+                        "$ref": "#/components/schemas/Amount"
                     },
                     "t0": {
                         "description": "Time between the periods in the same thread.",
@@ -1813,7 +1802,7 @@
                             "type": "string"
                         },
                         "ip_address": {
-                            "type": "string"
+                            "$ref": "#/components/schemas/IpAddress"
                         }
                     }
                 },
@@ -1829,8 +1818,6 @@
                     "clique_count",
                     "end_timespan",
                     "final_block_count",
-                    "final_operation_count",
-                    "staker_count",
                     "stale_block_count",
                     "start_timespan"
                 ],
@@ -1846,41 +1833,25 @@
                     "final_block_count": {
                         "type": "number"
                     },
-                    "final_operation_count": {
-                        "type": "number"
-                    },
-                    "staker_count": {
-                        "type": "number"
-                    },
                     "stale_block_count": {
                         "type": "number"
                     },
                     "start_timespan": {
                         "description": "Stats time interval, millis since 1970-01-01",
-                        "type": "string"
+                        "type": "number"
                     }
                 },
                 "additionalProperties": false
             },
-            "DataStore": {
-                "title": "Datastore",
+            "DataStoreEntry": {
+                "title": "Datastore entry",
                 "description": "A tuple which contains (entry, bytes)",
-                "type": "object",
-                "additionalProperties": {
-                    "type": "object",
-                    "properties": {
-                        "entry": {
-                            "type": "array",
-                            "items": {
-                                "type": "integer"
-                            }
-                        },
-                        "bytes": {
-                            "type": "array",
-                            "items": {
-                                "type": "integer"
-                            }
-                        }
+                "type": "array",
+                "maxItems": 2,
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/components/schemas/Bytes"
                     }
                 },
                 "example": [
@@ -1899,21 +1870,8 @@
                     ]
                 ]
             },
-            "DataStoreEntry": {
-                "description": "Datastore entry",
-                "type": "object",
-                "properties": {
-                    "candidate_value": {
-                        "description": "",
-                        "type": "string"
-                    },
-                    "final_value": {
-                        "description": "",
-                        "type": "string"
-                    }
-                }
-            },
             "DatastoreEntryInput": {
+                "title": "DatastoreEntryInput",
                 "description": "",
                 "required": [
                     "address",
@@ -1922,30 +1880,91 @@
                 "type": "object",
                 "properties": {
                     "address": {
-                        "description": "",
-                        "type": "string"
+                        "$ref": "#/components/schemas/Address"
                     },
                     "key": {
-                        "description": "",
-                        "type": "array",
-                        "items": {
-                            "format": "byte",
-                            "type": "string"
-                        }
+                        "$ref": "#/components/schemas/Bytes"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "DataStoreEntryOutput": {
+                "title": "DatastoreEntryOutput",
+                "description": "Datastore entry",
+                "type": "object",
+                "required": [
+                    "candidate_value",
+                    "final_value"
+                ],
+                "properties": {
+                    "candidate_value": {
+                        "description": "The candidate datastore entry value bytes",
+                        "$ref": "#/components/schemas/BytesOption"
+
+                    },
+                    "final_value": {
+                        "description": "The final datastore entry value bytes",
+                        "$ref": "#/components/schemas/BytesOption"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "Denunciation": {
+                "oneOf": [
+                    {
+                        "$ref": "#/components/schemas/EndorsementDenunciation"
+                    },
+                    {
+                        "$ref": "#/components/schemas/BlockHeaderDenunciation"
+                    }
+                ]
+            },
+            "EndorsementDenunciation": {
+                "type": "object",
+                "properties": {
+                    "public_key": {
+                        "$ref": "#/components/schemas/PublicKey"
+                    },
+                    "slot": {
+                        "$ref": "#/components/schemas/Slot"
+                    },
+                    "index": {
+                        "type": "integer"
+                    },
+                    "hash_1": {
+                        "type": "string"
+                    },
+                    "hash_2": {
+                        "type": "string"
+                    },
+                    "signature_1": {
+                        "$ref": "#/components/schemas/Signature"
+                    },
+                    "signature_2": {
+                        "$ref": "#/components/schemas/Signature"
                     }
                 }
             },
-            "DataStoreEntryOutput": {
-                "description": "Datastore entry",
+            "BlockHeaderDenunciation": {
                 "type": "object",
                 "properties": {
-                    "candidate_value": {
-                        "description": "",
+                    "public_key": {
+                        "$ref": "#/components/schemas/PublicKey"
+                    },
+                    "slot": {
+                        "$ref": "#/components/schemas/Slot"
+                    },
+                    "hash_1": {
                         "type": "string"
                     },
-                    "final_value": {
-                        "description": "",
+                    "hash_2": {
                         "type": "string"
+                    },
+                    "signature_1": {
+                        "$ref": "#/components/schemas/Signature"
+                    },
+                    "signature_2": {
+                        "$ref": "#/components/schemas/Signature"
                     }
                 }
             },
@@ -1954,7 +1973,7 @@
                 "description": "Endorsement",
                 "required": [
                     "content",
-                    "creator_public_key",
+                    "content_creator_pub_key",
                     "signature"
                 ],
                 "type": "object",
@@ -1962,39 +1981,71 @@
                     "content": {
                         "$ref": "#/components/schemas/EndorsementContent"
                     },
-                    "creator_public_key": {
-                        "$ref": "#/components/schemas/PublicKey",
-                        "description": "the content creator public key"
+                    "content_creator_pub_key": {
+                        "$ref": "#/components/schemas/PublicKey"
                     },
-                    "creator_address": {
-                        "type": "string"
-                    },
-                    "thread": {
-                        "type": "number"
+                    "content_creator_address": {
+                        "$ref": "#/components/schemas/Address"
                     },
                     "id": {
-                        "type": "string"
+                        "$ref": "#/components/schemas/EndorsementId"
                     },
                     "signature": {
-                        "type": "string"
+                        "$ref": "#/components/schemas/Signature"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "ExecutionStats": {
+                "title": "ExecutionStats",
+                "description": "Execution stats",
+                "required": [
+                    "time_window_start",
+                    "time_window_end",
+                    "final_block_count",
+                    "final_executed_operations_count",
+                    "active_cursor",
+                    "final_cursor"
+                ],
+                "type": "object",
+                "properties": {
+                    "time_window_start": {
+                        "description": "Time window start",
+                        "type": "number"
+                    },
+                    "time_window_end": {
+                        "description": "Time window end",
+                        "type": "number"
+                    },
+                    "final_block_count": {
+                        "description": "number of final blocks in the time window",
+                        "type": "number"
+                    },
+                    "final_executed_operations_count": {
+                        "description": "number of final executed operations in the time window",
+                        "type": "number"
+                    },
+                    "active_cursor": {
+                        "description": "active execution cursor slot",
+                        "$ref": "#/components/schemas/Slot"
+                    },
+                    "final_cursor": {
+                        "description": "final execution cursor slot",
+                        "$ref": "#/components/schemas/Slot"
                     }
                 },
                 "additionalProperties": false
             },
             "EndorsementContent": {
-                "title": "Content",
+                "title": "EndorsementContent",
                 "description": "Endorsement content",
                 "required": [
                     "endorsed_block",
                     "index",
-                    "sender_public_key",
                     "slot"
                 ],
                 "type": "object",
                 "properties": {
-                    "sender_public_key": {
-                        "type": "string"
-                    },
                     "slot": {
                         "$ref": "#/components/schemas/Slot"
                     },
@@ -2002,7 +2053,7 @@
                         "type": "number"
                     },
                     "endorsed_block": {
-                        "type": "string"
+                        "$ref": "#/components/schemas/BlockId"
                     }
                 },
                 "additionalProperties": false
@@ -2024,6 +2075,11 @@
                 },
                 "additionalProperties": false
             },
+            "EndorsementId": {
+                "title": "EndorsementId",
+                "description": "Endorsement id",
+                "type": "string"
+            },
             "EndorsementInfo": {
                 "title": "EndorsementInfo",
                 "description": "Endorsement info",
@@ -2037,41 +2093,19 @@
                 "type": "object",
                 "properties": {
                     "id": {
-                        "type": "string"
+                        "$ref": "#/components/schemas/EndorsementId"
                     },
                     "in_pool": {
                         "type": "boolean"
                     },
                     "in_blocks": {
-                        "description": "Block Id",
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        }
+                        "$ref": "#/components/schemas/BlockIdList"
                     },
                     "is_final": {
-                        "type": "boolean"
+                        "$ref": "#/components/schemas/IsFinal"
                     },
                     "endorsement": {
-                        "$ref": "#/components/schemas/Endorsement",
-                        "description": "Endorsement Id"
-                    }
-                },
-                "additionalProperties": false
-            },
-            "ExecutedAt": {
-                "title": "Slot",
-                "required": [
-                    "period",
-                    "thread"
-                ],
-                "type": "object",
-                "properties": {
-                    "period": {
-                        "type": "number"
-                    },
-                    "thread": {
-                        "type": "number"
+                        "$ref": "#/components/schemas/Endorsement"
                     }
                 },
                 "additionalProperties": false
@@ -2088,12 +2122,13 @@
                 "type": "object",
                 "properties": {
                     "executed_at": {
-                        "$ref": "#/components/schemas/ExecutedAt"
+                        "$ref": "#/components/schemas/Slot"
                     },
                     "result": {
                         "$ref": "#/components/schemas/ReadOnlyResult"
                     },
                     "output_events": {
+                        "title": "Output events",
                         "type": "array",
                         "items": {
                             "$ref": "#/components/schemas/SCOutputEvent"
@@ -2101,7 +2136,7 @@
                     },
                     "gas_cost": {
                         "description": "The gas cost for the execution",
-                        "type": "number"
+                        "$ref": "#/components/schemas/GasAmount"
                     },
                     "state_changes": {
                         "$ref": "#/components/schemas/StateChanges"
@@ -2110,8 +2145,8 @@
                 "additionalProperties": false
             },
             "ExecuteSC": {
-                "title": "ExecuteSC",
-                "description": "Execute Smart Contract",
+                "title": "ExecuteSC Receipt",
+                "description": "Execute SC operation receipt",
                 "required": [
                     "data",
                     "max_gas",
@@ -2120,18 +2155,14 @@
                 "type": "object",
                 "properties": {
                     "data": {
-                        "description": "Vec of bytes to execute",
-                        "type": "array",
-                        "items": {
-                            "type": "number"
-                        }
+                        "$ref": "#/components/schemas/Bytes"
                     },
                     "max_gas": {
                         "description": "Maximum amount of gas that the execution of the contract is allowed to cost.",
-                        "type": "number"
+                        "$ref": "#/components/schemas/GasAmount"
                     },
                     "datastore": {
-                        "$ref": "#/components/schemas/DataStore",
+                        "$ref": "#/components/schemas/DataStoreEntry",
                         "description": "A tuple which contains (key, value)"
                     }
                 },
@@ -2151,7 +2182,7 @@
                         "type": "number"
                     },
                     "is_final": {
-                        "type": "boolean"
+                        "$ref": "#/components/schemas/IsFinal"
                     },
                     "ok_count": {
                         "type": "number"
@@ -2160,9 +2191,17 @@
                         "type": "number"
                     },
                     "active_rolls": {
-                        "type": "number"
+                        "oneOf": [
+                            {
+                                "type": "null"
+                            },
+                            {
+                                "$ref": "#/components/schemas/RollAmount"
+                            }
+                        ]
                     }
-                }
+                },
+                "additionalProperties": false
             },
             "EventFilter": {
                 "title": "EventFilter",
@@ -2180,23 +2219,22 @@
                     },
                     "emitter_address": {
                         "description": "Optional emitter address",
-                        "type": "string"
+                        "$ref": "#/components/schemas/Address"
                     },
                     "original_caller_address": {
                         "description": "Optional caller address",
-                        "type": "string"
+                        "$ref": "#/components/schemas/Address"
                     },
                     "original_operation_id": {
-                        "description": "Optional operation id",
-                        "type": "string"
+                        "$ref": "#/components/schemas/OperationId"
                     },
                     "is_final": {
                         "description": "Optional filter to filter only candidate or final events",
-                        "type": "boolean"
+                        "$ref": "#/components/schemas/IsFinal"
                     },
                     "is_error": {
                         "description": "Optional filter to retrieve events generated in a failed execution",
-                        "type": "boolean"
+                        "$ref": "#/components/schemas/IsError"
                     }
                 },
                 "additionalProperties": false
@@ -2236,14 +2274,23 @@
                         "description": "When was it generated"
                     },
                     "block": {
-                        "$ref": "#/components/schemas/BlockId",
-                        "description": "Block Id"
+                        "title": "Block Id option",
+                        "oneOf": [
+                            {
+                                "type": "null"
+                            },
+                            {
+                                "$ref": "#/components/schemas/BlockId"
+                            }
+                        ]
                     },
                     "read_only": {
+                        "title": "Is Readonly",
                         "description": "Wether the event was generated during  read only call",
                         "type": "boolean"
                     },
                     "call_stack": {
+                        "title": "Address stack",
                         "description": "Addresses, most recent at the end",
                         "type": "array",
                         "items": {
@@ -2251,27 +2298,45 @@
                         }
                     },
                     "index_in_slot": {
+                        "title": "Index in slot",
                         "description": "Index of the event in the slot",
                         "type": "number"
                     },
                     "origin_operation_id": {
-                        "$ref": "#/components/schemas/OperationId",
-                        "description": "Origin operation id"
+                        "title": "OperationId",
+                        "description": "Origin operation id",
+                        "oneOf": [
+                            {
+                                "type": "null"
+                            },
+                            {
+                                "$ref": "#/components/schemas/OperationId"
+                            }
+                        ]
                     },
                     "is_final": {
                         "description": "Whether the event is final",
-                        "type": "boolean"
+                        "$ref": "#/components/schemas/IsFinal"
                     },
                     "is_error": {
                         "description": "Whether the event was generated in a failed executed or not",
-                        "type": "boolean"
+                        "$ref": "#/components/schemas/IsError"
                     }
                 },
                 "additionalProperties": false
             },
             "IpAddress": {
+                "title": "IpAddress",
                 "description": "Ipv4 or Ipv6 address",
                 "type": "string"
+            },
+            "IpAddressList": {
+                "title": "IpAddress List",
+                "description": "Array of Ipv4 or Ipv6 address",
+                "type": "array",
+                "items": {
+                    "$ref": "#/components/schemas/IpAddress"
+                }
             },
             "FilledBlock": {
                 "title": "FilledBlock",
@@ -2286,6 +2351,7 @@
                         "description": "signed header"
                     },
                     "operations": {
+                        "title": "Operations",
                         "description": "Operations",
                         "type": "array",
                         "items": {
@@ -2303,7 +2369,7 @@
                 "type": "object",
                 "properties": {
                     "id": {
-                        "type": "string"
+                        "$ref": "#/components/schemas/OperationId"
                     },
                     "content": {
                         "$ref": "#/components/schemas/FilledBlockInfoContent"
@@ -2323,15 +2389,13 @@
                 "properties": {
                     "is_final": {
                         "description": "true if final",
-                        "type": "boolean"
+                        "$ref": "#/components/schemas/IsFinal"
                     },
                     "is_stale": {
-                        "description": "true if incompatible with a final block",
-                        "type": "boolean"
+                        "$ref": "#/components/schemas/IsStale"
                     },
                     "is_in_blockclique": {
-                        "description": "true if in the greatest clique",
-                        "type": "boolean"
+                        "$ref": "#/components/schemas/IsInBlockClique"
                     },
                     "block": {
                         "$ref": "#/components/schemas/FilledBlock",
@@ -2355,27 +2419,24 @@
                 "properties": {
                     "creator": {
                         "description": "Public key",
-                        "type": "string"
+                        "$ref": "#/components/schemas/PublicKey"
                     },
                     "id": {
                         "description": "Block Id",
-                        "type": "string"
+                        "$ref": "#/components/schemas/BlockId"
                     },
                     "is_final": {
-                        "type": "boolean"
+                        "$ref": "#/components/schemas/IsFinal"
                     },
                     "is_in_blockclique": {
-                        "type": "boolean"
+                        "$ref": "#/components/schemas/IsInBlockClique"
                     },
                     "is_stale": {
-                        "type": "boolean"
+                        "$ref": "#/components/schemas/IsStale"
                     },
                     "parents": {
                         "description": "As many block Ids as there are threads",
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        }
+                        "$ref": "#/components/schemas/BlockIdList"
                     },
                     "slot": {
                         "$ref": "#/components/schemas/Slot"
@@ -2386,55 +2447,67 @@
             "Header": {
                 "title": "Header",
                 "required": [
-                    "creator",
                     "operation_merkle_root",
                     "parents",
                     "slot"
                 ],
                 "type": "object",
                 "properties": {
-                    "creator": {
-                        "type": "string"
+                    "current_version": {
+                        "description": "Current version",
+                        "type": "number"
+                    },
+                    "announced_version": {
+                        "description": "Announced version",
+                        "oneOf": [
+                            {
+                                "type": "null"
+                            },
+                            {
+                                "type": "number"
+                            }
+                        ]
                     },
                     "operation_merkle_root": {
                         "type": "string"
                     },
                     "parents": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        }
+                        "$ref": "#/components/schemas/BlockIdList"
                     },
                     "slot": {
                         "$ref": "#/components/schemas/Slot"
-                    }
-                },
-                "additionalProperties": false
-            },
-            "LedgerInfo": {
-                "title": "SceLedgerInfo",
-                "required": [
-                    "balance",
-                    "datastore"
-                ],
-                "type": "object",
-                "properties": {
-                    "balance": {
-                        "description": "Represent an amount",
-                        "type": "string"
                     },
-                    "module": {
-                        "description": "Stored bytecode",
+                    "endorsements": {
+                        "description": "Endorsements",
                         "type": "array",
                         "items": {
-                            "type": "integer"
+                            "type": "object",
+                            "properties": {
+                                "content": {
+                                    "$ref": "#/components/schemas/EndorsementContent"
+                                },
+                                "signature": {
+                                    "$ref": "#/components/schemas/Signature"
+                                },
+                                "content_creator_pub_key": {
+                                    "$ref": "#/components/schemas/PublicKey"
+                                },
+                                "content_creator_address": {
+                                    "$ref": "#/components/schemas/Address"
+                                },
+                                "id": {
+                                    "$ref": "#/components/schemas/EndorsementId"
+                                }
+                            }
                         }
                     },
-                    "datastore": {
+                    "denunciations": {
+                        "description": "Denunciations",
                         "type": "array",
                         "items": {
-                            "$ref": "#/components/schemas/DataStore"
-                        }
+                            "$ref": "#/components/schemas/Denunciation"
+                        },
+                        "minItems": 0
                     }
                 },
                 "additionalProperties": false
@@ -2486,10 +2559,13 @@
                     "current_cycle_time",
                     "next_cycle_time",
                     "network_stats",
+                    "last_slot",
                     "next_slot",
                     "node_id",
                     "pool_stats",
-                    "version"
+                    "version",
+                    "execution_stats",
+                    "chain_id"
                 ],
                 "type": "object",
                 "properties": {
@@ -2539,7 +2615,14 @@
                     },
                     "node_ip": {
                         "description": "Optional node ip if provided",
-                        "type": "string"
+                        "oneOf": [
+                            {
+                                "type": "null"
+                            },
+                            {
+                                "$ref": "#/components/schemas/IpAddress"
+                            }
+                        ]
                     },
                     "pool_stats": {
                         "$ref": "#/components/schemas/PoolStats",
@@ -2548,6 +2631,18 @@
                     "version": {
                         "$ref": "#/components/schemas/Version",
                         "description": "Node Version"
+                    },
+                    "execution_stats": {
+                        "$ref": "#/components/schemas/ExecutionStats",
+                        "description": "Execution stats"
+                    },
+                    "chain_id": {
+                        "description": "Chain id",
+                        "type": "number"
+                    },
+                    "minimal_fees": {
+                        "description": "Minimal fee",
+                        "$ref": "#/components/schemas/Amount"
                     }
                 },
                 "additionalProperties": false
@@ -2563,12 +2658,12 @@
                 "type": "object",
                 "properties": {
                     "fee": {
-                        "description": "the fee they have decided for this operation",
-                        "type": "string"
+                        "description": "Operation fee",
+                        "$ref": "#/components/schemas/Amount"
                     },
                     "expire_period": {
                         "description": "after `expire_period` slot the operation won't be included in a block",
-                        "type": "number"
+                        "$ref": "#/components/schemas/Period"
                     },
                     "op": {
                         "$ref": "#/components/schemas/OperationType",
@@ -2578,8 +2673,66 @@
                 "additionalProperties": false
             },
             "OperationId": {
+                "title": "OperationId",
                 "description": "Operation id",
                 "type": "string"
+            },
+            "Amount": {
+                "title": "Amount",
+                "description": "MAS amount in float string",
+                "type": "string"
+            },
+            "AmountOption": {
+                "title": "Amount Option",
+                "description": "MAS amount in float string",
+                "oneOf": [
+                    {
+                        "type": "null"
+                    },
+                    {
+                        "$ref": "#/components/schemas/Amount"
+                    }
+                ]
+            },
+            "IsFinal": {
+                "title": "Is final",
+                "description": "Operation is final",
+                "type": "boolean"
+            },
+            "IsError": {
+                "title": "Error",
+                "description": "Operation execution error",
+                "type": "boolean"
+            },
+            "IsStale": {
+                "title": "Stale",
+                "description": "true if incompatible with a final block",
+                "type": "boolean"
+            },
+            "IsInBlockClique": {
+                "title": "In Block Clique",
+                "description": "true if in the last clique",
+                "type": "boolean"
+            },
+            "IsCandidate": {
+                "title": "Is candidate",
+                "description": "true if candidate",
+                "type": "boolean"
+            },
+            "IsDiscarded": {
+                "title": "Is discarded",
+                "description": "true if discarded",
+                "type": "boolean"
+            },
+            "RollAmount": {
+                "title": "Roll Amount",
+                "description": "Amount of rolls",
+                "type": "integer"
+            },
+            "GasAmount": {
+                "title": "Gas Amount",
+                "description": "Amount of gas",
+                "type": "integer"
             },
             "OperationInfo": {
                 "title": "OperationInfo",
@@ -2588,47 +2741,58 @@
                     "id",
                     "in_blocks",
                     "in_pool",
-                    "is_final",
+                    "is_operation_final",
                     "thread",
                     "operation"
                 ],
                 "type": "object",
                 "properties": {
                     "id": {
-                        "description": "Operation id",
-                        "type": "string"
+                        "$ref": "#/components/schemas/OperationId"
                     },
                     "in_blocks": {
                         "description": "Block ids\nThe operation appears in `in_blocks`\nIf it appears in multiple blocks, these blocks are in different cliques",
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        }
+                        "$ref": "#/components/schemas/BlockIdList"
                     },
                     "in_pool": {
                         "description": "True if operation is still in pool",
                         "type": "boolean"
                     },
-                    "is_final": {
+                    "is_operation_final": {
                         "description": "True if the operation is final (for example in a final block)",
-                        "type": "boolean"
+                        "title": "Is Final Operation",
+                        "oneOf": [
+                            {
+                                "type": "null"
+                            },
+                            {
+                                "$ref": "#/components/schemas/IsFinal"
+                            }
+                        ]
                     },
                     "thread": {
                         "description": "Thread in which the operation can be included",
-                        "type": "number"
+                        "$ref": "#/components/schemas/Thread"
                     },
                     "operation": {
-                        "$ref": "#/components/schemas/WrappedOperation",
-                        "description": "The operation itself"
+                        "$ref": "#/components/schemas/WrappedOperation"
                     },
                     "op_exec_status": {
                         "description": "true if the operation execution succeeded, false if failed, None means unknown",
-                        "type": "boolean"
+                        "oneOf": [
+                            {
+                                "type": "null"
+                            },
+                            {
+                                "type": "boolean"
+                            }
+                        ]
                     }
                 },
                 "additionalProperties": false
             },
             "OperationInput": {
+                "title": "OperationInput",
                 "description": "Operation input",
                 "required": [
                     "creator_public_key",
@@ -2646,17 +2810,13 @@
                         "description": "The signature of the operation"
                     },
                     "serialized_content": {
-                        "description": "The serialized version of the content `base58` encoded",
-                        "type": "array",
-                        "items": {
-                            "format": "byte",
-                            "type": "string"
-                        }
+                        "$ref": "#/components/schemas/Bytes"
                     }
                 },
                 "additionalProperties": false
             },
             "OperationType": {
+                "title": "OperationType",
                 "description": "Type specific operation content.",
                 "type": "object",
                 "properties": {
@@ -2664,7 +2824,7 @@
                         "$ref": "#/components/schemas/Transaction",
                         "description": "transfer coins from sender to recipient"
                     },
-                    "ExecutSC": {
+                    "ExecuteSC": {
                         "$ref": "#/components/schemas/ExecuteSC",
                         "description": "Execute a smart contract."
                     },
@@ -2680,10 +2840,11 @@
                         "$ref": "#/components/schemas/RollSell",
                         "description": "the sender sells `roll_count` rolls. Roll price is defined in configuration"
                     }
-                }
+                },
+                "additionalProperties": false
             },
             "PageRequest": {
-                "title": "PageRequest",
+                "title": "Pagination",
                 "description": "An PageRequest object, which contains limit (max elements par page) and a page offset.",
                 "type": "object",
                 "required": [
@@ -2697,9 +2858,11 @@
                     "offset": {
                         "type": "number"
                     }
-                }
+                },
+                "additionalProperties": false
             },
             "PagedVecStaker": {
+                "title": "PagedVecStaker",
                 "description": "PagedVec of stakers for apiV2",
                 "type": "object",
                 "properties": {
@@ -2712,27 +2875,19 @@
                     "total_count": {
                         "type": "number"
                     }
-                }
+                },
+                "additionalProperties": false
             },
             "PoolStats": {
                 "title": "PoolStats",
                 "description": "Pool stats",
-                "required": [
-                    "endorsement_count",
-                    "operation_count"
-                ],
-                "type": "object",
-                "properties": {
-                    "endorsement_count": {
-                        "type": "number"
-                    },
-                    "operation_count": {
-                        "type": "number"
-                    }
-                },
-                "additionalProperties": false
+                "type": "array",
+                "items": {
+                    "type": "number"
+                }
             },
             "PrivateKey": {
+                "title": "PrivateKey",
                 "description": "`PrivateKey` is used for signature and decryption",
                 "type": "string"
             },
@@ -2750,7 +2905,7 @@
                         "type": "integer"
                     },
                     "is_final": {
-                        "type": "boolean"
+                        "$ref": "#/components/schemas/IsFinal"
                     },
                     "nok_count": {
                         "type": "integer"
@@ -2762,10 +2917,12 @@
                 "additionalProperties": false
             },
             "PublicKey": {
+                "title": "PublicKey",
                 "description": "Public key used to check if a message was encoded by the corresponding `PublicKey`.\nGenerated from the `KeyPair` using `SignatureEngine`",
                 "type": "string"
             },
             "PubkeySig": {
+                "title": "PubkeySig",
                 "description": "Public key and a signature it has produced used for serialization/deserialization purpose",
                 "required": [
                     "public_key",
@@ -2774,14 +2931,13 @@
                 "type": "object",
                 "properties": {
                     "public_key": {
-                        "description": "public key",
-                        "type": "string"
+                        "$ref": "#/components/schemas/PublicKey"
                     },
                     "signature": {
-                        "description": "signature",
-                        "type": "string"
+                        "$ref": "#/components/schemas/Signature"
                     }
-                }
+                },
+                "additionalProperties": false
             },
             "ReadOnlyBytecodeExecution": {
                 "title": "ReadOnlyBytecodeExecution",
@@ -2794,39 +2950,29 @@
                 "properties": {
                     "max_gas": {
                         "description": "Max available gas",
-                        "type": "number"
+                        "$ref": "#/components/schemas/GasAmount"
                     },
                     "bytecode": {
-                        "description": "Bytecode to execute",
-                        "type": "array",
-                        "items": {
-                            "format": "byte",
-                            "type": "string"
-                        }
+                        "$ref": "#/components/schemas/Bytes"
                     },
                     "address": {
-                        "$ref": "#/components/schemas/Address",
+                        "$ref": "#/components/schemas/AddressOption",
                         "description": "caller's address"
                     },
                     "operation_datastore": {
-                        "description": "An operation datastore",
-                        "type": "array",
-                        "items": {
-                            "format": "byte",
-                            "type": "string"
-                        }
-                    },
-                    "is_final": {
-                        "description": "Whether to start execution from final or active state",
-                        "type": "boolean"
-                    },
-                    "coins": {
-                        "description": "Amount in coins, optional",
-                        "type": "number"
+                        "description": "Operation datastore TO FIX (https://github.com/massalabs/massa/issues/4775)",
+                        "title": "Operation datastore",
+                        "oneOf": [
+                            {
+                                "type": "null"
+                            },
+                            {
+                                "$ref": "#/components/schemas/Bytes"
+                            }
+                        ]
                     },
                     "fee": {
-                        "description": "Fee, optional",
-                        "type": "number"
+                        "$ref": "#/components/schemas/AmountOption"
                     }
                 },
                 "additionalProperties": false
@@ -2836,39 +2982,41 @@
                 "description": "Read only call",
                 "required": [
                     "max_gas",
-                    "parameter",
                     "target_address",
-                    "target_function"
+                    "target_function",
+                    "parameter",
+                    "caller_address",
+                    "coins",
+                    "fee"
                 ],
                 "type": "object",
                 "properties": {
                     "max_gas": {
                         "description": "Max available gas",
-                        "type": "number"
+                        "$ref": "#/components/schemas/GasAmount"
                     },
                     "target_address": {
                         "description": "Target address",
-                        "type": "string"
+                        "$ref": "#/components/schemas/Address"
                     },
                     "target_function": {
                         "description": "Target function",
+                        "title": "Target Function",
                         "type": "string"
                     },
                     "parameter": {
-                        "description": "Function parameter",
-                        "type": "string"
+                        "description": "Serialized SC call params",
+                        "$ref": "#/components/schemas/Bytes"
                     },
                     "caller_address": {
                         "description": "Caller's address, optional",
-                        "type": "string"
+                        "$ref": "#/components/schemas/AddressOption"
                     },
                     "coins": {
-                        "description": "Amount in coins, optional",
-                        "type": "number"
+                        "$ref": "#/components/schemas/AmountOption"
                     },
                     "fee": {
-                        "description": "Fee, optional",
-                        "type": "number"
+                        "$ref": "#/components/schemas/AmountOption"
                     }
                 },
                 "additionalProperties": false
@@ -2880,17 +3028,14 @@
                 "properties": {
                     "Ok": {
                         "description": "Included in case of success. The result of the execution",
-                        "type": "array",
-                        "items": {
-                            "format": "byte",
-                            "type": "string"
-                        }
+                        "$ref": "#/components/schemas/Bytes"
                     },
                     "Error": {
                         "description": "Included in case of error. The error message",
                         "type": "string"
                     }
-                }
+                },
+                "additionalProperties": false
             },
             "Roll": {
                 "title": "Roll",
@@ -2901,26 +3046,27 @@
                 "type": "object",
                 "properties": {
                     "roll_count": {
-                        "type": "integer"
+                        "$ref": "#/components/schemas/RollAmount"
                     }
                 },
                 "additionalProperties": false
             },
             "RollBuy": {
-                "description": "the sender buys `roll_count` rolls. Roll price is defined in configuration",
+                "title": "RollBuy Receipt",
+                "description": "Buy roll operation receipt",
                 "required": [
                     "roll_count"
                 ],
                 "type": "object",
                 "properties": {
                     "roll_count": {
-                        "description": "roll count",
-                        "type": "number"
+                        "$ref": "#/components/schemas/RollAmount"
                     }
-                }
+                },
+                "additionalProperties": false
             },
             "RollsInfo": {
-                "title": "Rolls",
+                "title": "RollsInfo",
                 "required": [
                     "active_rolls",
                     "candidate_rolls",
@@ -2929,29 +3075,30 @@
                 "type": "object",
                 "properties": {
                     "active_rolls": {
-                        "type": "integer"
+                        "$ref": "#/components/schemas/RollAmount"
                     },
                     "candidate_rolls": {
-                        "type": "integer"
+                        "$ref": "#/components/schemas/RollAmount"
                     },
                     "final_rolls": {
-                        "type": "integer"
+                        "$ref": "#/components/schemas/RollAmount"
                     }
                 },
                 "additionalProperties": false
             },
             "RollSell": {
-                "description": "the sender sells `roll_count` rolls. Roll price is defined in configuration",
+                "title": "RollSell Receipt",
+                "description": "RollSell operation receipt",
                 "required": [
                     "roll_count"
                 ],
                 "type": "object",
                 "properties": {
                     "roll_count": {
-                        "description": "roll count",
-                        "type": "number"
+                        "$ref": "#/components/schemas/RollAmount"
                     }
-                }
+                },
+                "additionalProperties": false
             },
             "SCOEContext": {
                 "title": "SCOEContext",
@@ -2967,8 +3114,7 @@
                         "$ref": "#/components/schemas/Slot"
                     },
                     "block": {
-                        "description": "Block Id",
-                        "type": "string"
+                        "$ref": "#/components/schemas/BlockId"
                     },
                     "read_only": {
                         "description": "Wether the event was generated during  read only call",
@@ -2976,17 +3122,17 @@
                     },
                     "call_stack": {
                         "description": "Addresses",
+                        "title": "Address stack",
                         "type": "array",
                         "items": {
-                            "type": "string"
+                            "$ref": "#/components/schemas/Address"
                         }
                     },
                     "index_in_slot": {
                         "type": "number"
                     },
                     "origin_operation_id": {
-                        "description": "Operation id",
-                        "type": "string"
+                        "$ref": "#/components/schemas/OperationId"
                     }
                 },
                 "additionalProperties": false
@@ -3000,7 +3146,8 @@
                 "type": "object",
                 "properties": {
                     "data": {
-                        "description": "String of the event you sended",
+                        "title": "Event data",
+                        "description": "String of the event",
                         "type": "string"
                     },
                     "context": {
@@ -3011,11 +3158,12 @@
                 "additionalProperties": false
             },
             "Signature": {
+                "title": "Signature",
                 "description": "Signature generated from a message and a `KeyPair`.",
                 "type": "string"
             },
             "Slot": {
-                "title": "TSlot",
+                "title": "Slot",
                 "description": "Slot",
                 "required": [
                     "period",
@@ -3024,13 +3172,23 @@
                 "type": "object",
                 "properties": {
                     "period": {
-                        "type": "number"
+                        "$ref": "#/components/schemas/Period"
                     },
                     "thread": {
-                        "type": "number"
+                        "$ref": "#/components/schemas/Thread"
                     }
                 },
                 "additionalProperties": false
+            },
+            "Period": {
+                "title": "Period",
+                "description": "Slot period.",
+                "type": "number"
+            },
+            "Thread": {
+                "title": "Thread",
+                "description": "Slot thread.",
+                "type": "number"
             },
             "Staker": {
                 "title": "Staker",
@@ -3043,7 +3201,7 @@
                             "$ref": "#/components/schemas/Address"
                         },
                         "active_rolls": {
-                            "type": "number"
+                            "$ref": "#/components/schemas/RollAmount"
                         }
                     }
                 },
@@ -3058,7 +3216,9 @@
                     "async_pool_changes",
                     "executed_ops_changes",
                     "ledger_changes",
-                    "pos_changes"
+                    "pos_changes",
+                    "executed_denunciations_changes",
+                    "execution_trail_hash_change"
                 ],
                 "type": "object",
                 "properties": {
@@ -3080,13 +3240,37 @@
                     "executed_ops_changes": {
                         "description": "executed operations changes",
                         "type": "object"
+                    },
+                    "executed_denunciations_changes": {
+                        "description": "executed denunciation changes",
+                        "type": "object"
+                    },
+                    "execution_trail_hash_change": {
+                        "description": "execution trail hash change",
+                        "title": "Execution trail hash change",
+                        "oneOf": [
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "Set": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "Set"
+                                ]
+                            },
+                            {
+                                "type": "string"
+                            }
+                        ]
                     }
                 },
                 "additionalProperties": false
             },
             "Transaction": {
-                "title": "Transaction",
-                "description": "Transation",
+                "title": "Transaction Receipt",
+                "description": "Transaction operation receipt",
                 "required": [
                     "amount",
                     "recipient_address"
@@ -3094,48 +3278,104 @@
                 "type": "object",
                 "properties": {
                     "amount": {
-                        "description": "Represent an Amount in coins",
-                        "type": "string"
+                        "$ref": "#/components/schemas/Amount"
                     },
                     "recipient_address": {
-                        "type": "string"
+                        "$ref": "#/components/schemas/Address"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "Transfer": {
+                "title": "Transfer Receipt",
+                "description": "MAS Transfer operation receipt",
+                "required": [
+                    "from",
+                    "to",
+                    "amount",
+                    "effective_amount_received",
+                    "context",
+                    "succeed",
+                    "fee",
+                    "block_id"
+                ],
+                "type": "object",
+                "properties": {
+                    "from": {
+                        "description": "Address of the sender",
+                        "$ref": "#/components/schemas/Address"
+                    },
+                    "to": {
+                        "description": "Address of the receiver",
+                        "$ref": "#/components/schemas/Address"
+                    },
+                    "amount": {
+                        "description": "Amount transferred",
+                        "$ref": "#/components/schemas/Amount"
+                    },
+                    "effective_amount_received": {
+                        "$ref": "#/components/schemas/Amount"
+                    },
+                    "context": {
+                        "description": "Context of the transfer : operation or asynchronous execution",
+                        "title": "Context",
+                        "type": "object"
+                    },
+                    "succeed": {
+                        "description": "True if the operation succeed otherwise false",
+                        "title": "isSuccess",
+                        "type": "boolean"
+                    },
+                    "fee": {
+                        "description": "Fees passed to the operation",
+                        "$ref": "#/components/schemas/Amount"
+                    },
+                    "block_id": {
+                        "description": "ID of the block in which the operation is included",
+                        "$ref": "#/components/schemas/BlockId"
                     }
                 },
                 "additionalProperties": false
             },
             "Version": {
+                "title": "Version",
                 "description": "Application version, checked during handshakes",
                 "type": "string"
             },
             "WrappedHeader": {
+                "title": "WrappedHeader",
                 "description": "signed operation",
                 "required": [
                     "content",
                     "signature",
-                    "creator_public_key",
-                    "creator_address"
+                    "content_creator_pub_key",
+                    "content_creator_address"
                 ],
                 "type": "object",
                 "properties": {
                     "content": {
-                        "$ref": "#/components/schemas/Header",
-                        "description": "header type"
+                        "$ref": "#/components/schemas/Header"
                     },
                     "signature": {
                         "$ref": "#/components/schemas/Signature",
                         "description": "signature"
                     },
-                    "creator_public_key": {
+                    "content_creator_pub_key": {
                         "$ref": "#/components/schemas/PublicKey",
                         "description": "the content creator public key"
                     },
-                    "creator_address": {
+                    "content_creator_address": {
                         "$ref": "#/components/schemas/Address",
                         "description": "the content creator address"
+                    },
+                    "id": {
+                        "$ref": "#/components/schemas/BlockId"
                     }
-                }
+                },
+                "additionalProperties": false
             },
             "WrappedOperation": {
+                "title": "WrappedOperation",
                 "description": "signed operation",
                 "required": [
                     "content",
@@ -3146,22 +3386,25 @@
                 "type": "object",
                 "properties": {
                     "content": {
-                        "$ref": "#/components/schemas/OperationType",
-                        "description": "operation type"
+                        "$ref": "#/components/schemas/Operation"
                     },
                     "signature": {
                         "$ref": "#/components/schemas/Signature",
                         "description": "signature"
                     },
-                    "creator_public_key": {
+                    "content_creator_pub_key": {
                         "$ref": "#/components/schemas/PublicKey",
                         "description": "the content creator public key"
                     },
-                    "creator_address": {
+                    "content_creator_address": {
                         "$ref": "#/components/schemas/Address",
                         "description": "the content creator address"
+                    },
+                    "id": {
+                        "$ref": "#/components/schemas/OperationId"
                     }
-                }
+                },
+                "additionalProperties": false
             }
         },
         "contentDescriptors": {
@@ -3219,14 +3462,6 @@
                 "description": "A Clique object",
                 "schema": {
                     "$ref": "#/components/schemas/Clique"
-                }
-            },
-            "DataStoreEntry": {
-                "name": "DataStoreEntry",
-                "summary": "DataStoreEntry",
-                "description": "A DataStoreEntry object",
-                "schema": {
-                    "$ref": "#/components/schemas/DataStoreEntry"
                 }
             },
             "DatastoreEntryInput": {
