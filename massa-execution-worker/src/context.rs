@@ -87,6 +87,10 @@ pub struct ExecutionContextSnapshot {
 
     /// Unsafe random state
     pub unsafe_rng: Xoshiro256PlusPlus,
+
+    /// The gas remaining before the last subexecution.
+    /// so *excluding* the gas used by the last sc call.
+    pub gas_remaining_before_subexecution: Option<u64>,
 }
 
 /// An execution context that needs to be initialized before executing bytecode,
@@ -171,6 +175,10 @@ pub struct ExecutionContext {
 
     /// Address factory
     pub address_factory: AddressFactory,
+
+    /// The gas remaining before the last subexecution.
+    /// so *excluding* the gas used by the last sc call.
+    pub gas_remaining_before_subexecution: Option<u64>,
 }
 
 impl ExecutionContext {
@@ -180,7 +188,9 @@ impl ExecutionContext {
     /// (see read-only and `active_slot` methods).
     ///
     /// # arguments
-    /// * `final_state`: thread-safe access to the final state. Note that this will be used only for reading, never for writing
+    /// * `final_state`: thread-safe access to the final state.
+    ///
+    /// Note that this will be used only for reading, never for writing
     ///
     /// # returns
     /// A new (empty) `ExecutionContext` instance
@@ -233,6 +243,7 @@ impl ExecutionContext {
             config,
             address_factory: AddressFactory { mip_store },
             execution_trail_hash,
+            gas_remaining_before_subexecution: None,
         }
     }
 
@@ -253,6 +264,7 @@ impl ExecutionContext {
             stack: self.stack.clone(),
             event_count: self.events.0.len(),
             unsafe_rng: self.unsafe_rng.clone(),
+            gas_remaining_before_subexecution: self.gas_remaining_before_subexecution,
         }
     }
 
@@ -280,6 +292,7 @@ impl ExecutionContext {
         self.created_message_index = snapshot.created_message_index;
         self.stack = snapshot.stack;
         self.unsafe_rng = snapshot.unsafe_rng;
+        self.gas_remaining_before_subexecution = snapshot.gas_remaining_before_subexecution;
 
         // For events, set snapshot delta to error events.
         for event in self.events.0.range_mut(snapshot.event_count..) {
@@ -696,13 +709,28 @@ impl ExecutionContext {
     ///
     /// # Arguments
     /// * `msg`: the asynchronous message to cancel
-    pub fn cancel_async_message(&mut self, msg: &AsyncMessage) {
-        if let Err(e) = self.transfer_coins(None, Some(msg.sender), msg.coins, false) {
+    pub fn cancel_async_message(
+        &mut self,
+        msg: &AsyncMessage,
+    ) -> Option<(Address, Result<Amount, String>)> {
+        #[allow(unused_assignments, unused_mut)]
+        let mut result = None;
+        let transfer_result = self.transfer_coins(None, Some(msg.sender), msg.coins, false);
+        if let Err(e) = transfer_result.as_ref() {
             debug!(
                 "async message cancel: reimbursement of {} failed: {}",
                 msg.sender, e
             );
         }
+
+        #[cfg(feature = "execution-info")]
+        if let Err(e) = transfer_result {
+            result = Some((msg.sender, Err(e.to_string())))
+        } else {
+            result = Some((msg.sender, Ok(msg.coins)));
+        }
+
+        result
     }
 
     /// Add `roll_count` rolls to the buyer address.
@@ -819,21 +847,38 @@ impl ExecutionContext {
     ///
     /// # Arguments
     /// * `slot`: associated slot of the deferred credits to be executed
-    pub fn execute_deferred_credits(&mut self, slot: &Slot) {
+    pub fn execute_deferred_credits(
+        &mut self,
+        slot: &Slot,
+    ) -> Vec<(Address, Result<Amount, String>)> {
+        #[allow(unused_mut)]
+        let mut result = vec![];
+
         for (_slot, map) in self
             .speculative_roll_state
             .take_unexecuted_deferred_credits(slot)
             .credits
         {
             for (address, amount) in map {
-                if let Err(e) = self.transfer_coins(None, Some(address), amount, false) {
+                let transfer_result = self.transfer_coins(None, Some(address), amount, false);
+
+                if let Err(e) = transfer_result.as_ref() {
                     debug!(
                         "could not credit {} deferred coins to {} at slot {}: {}",
                         amount, address, slot, e
                     );
                 }
+
+                #[cfg(feature = "execution-info")]
+                if let Err(e) = transfer_result {
+                    result.push((address, Err(e.to_string())));
+                } else {
+                    result.push((address, Ok(amount)));
+                }
             }
         }
+
+        result
     }
 
     /// Finishes a slot and generates the execution output.
@@ -847,7 +892,7 @@ impl ExecutionContext {
         let slot = self.slot;
 
         // execute the deferred credits coming from roll sells
-        self.execute_deferred_credits(&slot);
+        let deferred_credits_transfers = self.execute_deferred_credits(&slot);
 
         // take the ledger changes first as they are needed for async messages and cache
         let ledger_changes = self.speculative_ledger.take();
@@ -856,8 +901,12 @@ impl ExecutionContext {
         let deleted_messages = self
             .speculative_async_pool
             .settle_slot(&slot, &ledger_changes);
+
+        let mut cancel_async_message_transfers = vec![];
         for (_msg_id, msg) in deleted_messages {
-            self.cancel_async_message(&msg);
+            if let Some(t) = self.cancel_async_message(&msg) {
+                cancel_async_message_transfers.push(t)
+            }
         }
 
         // update module cache
@@ -870,7 +919,7 @@ impl ExecutionContext {
         }
 
         // if the current slot is last in cycle check the production stats and act accordingly
-        if self
+        let auto_sell_rolls = if self
             .slot
             .is_last_of_cycle(self.config.periods_per_cycle, self.config.thread_count)
         {
@@ -880,8 +929,10 @@ impl ExecutionContext {
                 self.config.thread_count,
                 self.config.roll_price,
                 self.config.max_miss_ratio,
-            );
-        }
+            )
+        } else {
+            vec![]
+        };
 
         // generate the execution output
         let state_changes = StateChanges {
@@ -899,6 +950,13 @@ impl ExecutionContext {
             block_info,
             state_changes,
             events: std::mem::take(&mut self.events),
+            #[cfg(feature = "execution-trace")]
+            slot_trace: None,
+            #[cfg(feature = "dump-block")]
+            storage: None,
+            deferred_credits_execution: deferred_credits_transfers,
+            cancel_async_message_execution: cancel_async_message_transfers,
+            auto_sell_execution: auto_sell_rolls,
         }
     }
 
@@ -936,7 +994,7 @@ impl ExecutionContext {
     }
 
     /// Creates a new event but does not emit it.
-    /// Note that this does not increments the context event counter.
+    /// Note that this does not increment the context event counter.
     ///
     /// # Arguments:
     /// data: the string data that is the payload of the event
@@ -1016,24 +1074,26 @@ impl ExecutionContext {
     }
 
     /// Get future deferred credits of an address
+    /// With optionally a limit slot (excluded)
     pub fn get_address_future_deferred_credits(
         &self,
         address: &Address,
         thread_count: u8,
+        max_slot: std::ops::Bound<Slot>,
     ) -> BTreeMap<Slot, Amount> {
         let min_slot = self
             .slot
             .get_next_slot(thread_count)
             .expect("unexpected slot overflow in context.get_addresses_deferred_credits");
         self.speculative_roll_state
-            .get_address_deferred_credits(address, min_slot)
+            .get_address_deferred_credits(address, (std::ops::Bound::Included(min_slot), max_slot))
     }
 
     /// in case of
     ///
     /// async_msg, call OP, call SC to SC, read only call
     ///
-    /// check if the given address is a smart contract address and if it exist
+    /// check if the given address is a smart contract address and if it exists
     /// returns an error instead
     pub fn check_target_sc_address(
         &self,
@@ -1099,6 +1159,6 @@ fn init_prng(execution_trail_hash: &massa_hash::Hash) -> Xoshiro256PlusPlus {
     // We use Xoshiro256PlusPlus because it is very fast,
     // has a period long enough to ensure no repetitions will ever happen,
     // of decent quality (given the unsafe constraints)
-    // but not cryptographically secure (and that's ok because the internal state is exposed anyways)
+    // but not cryptographically secure (and that's ok because the internal state is exposed anyway)
     Xoshiro256PlusPlus::from_seed(seed)
 }

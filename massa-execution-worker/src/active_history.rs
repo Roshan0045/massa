@@ -30,7 +30,7 @@ pub enum SlotIndexPosition {
     Past,
     /// out of bounds in the future
     Future,
-    /// found in history at a the given index
+    /// found in history at a given index
     Found(usize),
     /// history is empty
     NoHistory,
@@ -250,7 +250,7 @@ impl ActiveHistory {
             return SlotIndexPosition::Past; // too old
         }
         let index: usize = match slot.slots_since(first_slot, thread_count) {
-            Err(_) => return SlotIndexPosition::Future, // overflow
+            Err(_) => return SlotIndexPosition::Past, // overflow
             Ok(d) => {
                 match d.try_into() {
                     Ok(d) => d,

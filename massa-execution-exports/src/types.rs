@@ -19,7 +19,11 @@ use massa_models::{
 };
 use massa_pos_exports::ProductionStats;
 use massa_storage::Storage;
+use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
+
+#[cfg(feature = "execution-trace")]
+use crate::types_trace_info::{SlotAbiCallStack, Transfer};
 
 /// Metadata needed to execute the block
 #[derive(Clone, Debug)]
@@ -214,7 +218,7 @@ pub enum SlotExecutionOutput {
 }
 
 /// structure storing a block id + network versions (from a block header)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ExecutedBlockInfo {
     /// Block id
     pub block_id: BlockId,
@@ -225,7 +229,7 @@ pub struct ExecutedBlockInfo {
 }
 
 /// structure describing the output of a single execution
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ExecutionOutput {
     /// slot
     pub slot: Slot,
@@ -235,6 +239,19 @@ pub struct ExecutionOutput {
     pub state_changes: StateChanges,
     /// events emitted by the execution step
     pub events: EventStore,
+    /// slot trace
+    #[cfg(feature = "execution-trace")]
+    pub slot_trace: Option<(SlotAbiCallStack, Vec<Transfer>)>,
+    /// storage
+    #[cfg(feature = "dump-block")]
+    #[serde(skip_serializing)]
+    pub storage: Option<Storage>,
+    /// Deferred credits execution (empty if execution-info feature is NOT enabled)
+    pub deferred_credits_execution: Vec<(Address, Result<Amount, String>)>,
+    /// Cancel async message execution (empty if execution-info feature is NOT enabled)
+    pub cancel_async_message_execution: Vec<(Address, Result<Amount, String>)>,
+    /// Auto sell roll execution (empty if execution-info feature is NOT enabled)
+    pub auto_sell_execution: Vec<(Address, Amount)>,
 }
 
 /// structure describing the output of a read only execution
@@ -242,7 +259,7 @@ pub struct ExecutionOutput {
 pub struct ReadOnlyExecutionOutput {
     /// Output of a single execution
     pub out: ExecutionOutput,
-    /// Gas cost for this execution
+    /// Gas cost for this execution, with needed adjustments
     pub gas_cost: u64,
     /// Returned value from the module call
     pub call_result: Vec<u8>,

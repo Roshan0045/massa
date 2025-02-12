@@ -10,6 +10,7 @@ lazy_static::lazy_static! {
     pub static ref SETTINGS: Settings = build_massa_settings("massa-client", "MASSA_CLIENT");
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize, Clone)]
 pub struct Settings {
     pub default_node: DefaultNode,
@@ -26,6 +27,7 @@ pub struct DefaultNode {
     pub public_port: u16,
     pub grpc_public_port: u16,
     pub grpc_private_port: u16,
+    pub chain_id: Option<u64>,
 }
 
 /// Client settings

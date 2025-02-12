@@ -25,7 +25,7 @@ use std::{
     collections::{HashMap, VecDeque},
     sync::Arc,
 };
-use tracing::log::info;
+use tracing::info;
 
 use crate::{commands::ConsensusCommand, state::ConsensusState};
 
@@ -56,6 +56,7 @@ pub fn create_genesis_block(
         },
         BlockHeaderSerializer::new(),
         keypair,
+        cfg.chain_id,
     )?;
 
     Ok(Block::new_verifiable(
@@ -65,6 +66,7 @@ pub fn create_genesis_block(
         },
         BlockSerializer::new(),
         keypair,
+        cfg.chain_id,
     )?)
 }
 
