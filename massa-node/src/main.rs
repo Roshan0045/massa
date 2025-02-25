@@ -10,6 +10,7 @@ use crate::operation_injector::start_operation_injector;
 use crate::settings::SETTINGS;
 use crate::survey::MassaSurvey;
 
+use cfg_if::cfg_if;
 use clap::{crate_version, Parser};
 use crossbeam_channel::TryRecvError;
 use dialoguer::Password;
@@ -35,6 +36,15 @@ use massa_execution_exports::{
     ExecutionChannels, ExecutionConfig, ExecutionManager, GasCosts, StorageCostsConstants,
 };
 use massa_execution_worker::start_execution_worker;
+#[cfg(all(
+    feature = "dump-block",
+    feature = "file_storage_backend",
+    not(feature = "db_storage_backend")
+))]
+use massa_execution_worker::storage_backend::FileStorageBackend;
+#[cfg(all(feature = "dump-block", feature = "db_storage_backend"))]
+use massa_execution_worker::storage_backend::RocksDBStorageBackend;
+
 use massa_factory_exports::{FactoryChannels, FactoryConfig, FactoryManager};
 use massa_factory_worker::start_factory;
 use massa_final_state::{FinalState, FinalStateConfig, FinalStateController};
@@ -45,6 +55,7 @@ use massa_ledger_worker::FinalLedger;
 use massa_logging::massa_trace;
 use massa_metrics::{MassaMetrics, MetricsStopper};
 use massa_models::address::Address;
+use massa_models::amount::Amount;
 use massa_models::config::constants::{
     ASYNC_MSG_CST_GAS_COST, BLOCK_REWARD, BOOTSTRAP_RANDOMNESS_SIZE_BYTES, CHANNEL_SIZE,
     CONSENSUS_BOOTSTRAP_PART_SIZE, DELTA_F0, DENUNCIATION_EXPIRE_PERIODS, ENDORSEMENT_COUNT,
@@ -74,12 +85,13 @@ use massa_models::config::constants::{
     VERSION,
 };
 use massa_models::config::{
-    BASE_OPERATION_GAS_COST, KEEP_EXECUTED_HISTORY_EXTRA_PERIODS,
+    BASE_OPERATION_GAS_COST, CHAINID, KEEP_EXECUTED_HISTORY_EXTRA_PERIODS,
     MAX_BOOTSTRAP_FINAL_STATE_PARTS_SIZE, MAX_BOOTSTRAP_VERSIONING_ELEMENTS_SIZE,
     MAX_EVENT_DATA_SIZE, MAX_MESSAGE_SIZE, POOL_CONTROLLER_DENUNCIATIONS_CHANNEL_SIZE,
     POOL_CONTROLLER_ENDORSEMENTS_CHANNEL_SIZE, POOL_CONTROLLER_OPERATIONS_CHANNEL_SIZE,
 };
 use massa_models::slot::Slot;
+use massa_models::timeslots::get_block_slot_timestamp;
 use massa_pool_exports::{PoolBroadcasts, PoolChannels, PoolConfig, PoolManager};
 use massa_pool_worker::start_pool_controller;
 use massa_pos_exports::{PoSConfig, SelectorConfig, SelectorManager};
@@ -135,21 +147,6 @@ async fn launch(
     MassaSurveyStopper,
 ) {
     let now = MassaTime::now();
-    // Do not start if genesis is in the future. This is meant to prevent nodes
-    // from desync if the bootstrap nodes keep a previous ledger
-    #[cfg(all(not(feature = "sandbox"), not(feature = "bootstrap_server")))]
-    {
-        if *GENESIS_TIMESTAMP > now {
-            let (days, hours, mins, secs) = GENESIS_TIMESTAMP
-                .saturating_sub(now)
-                .days_hours_mins_secs()
-                .unwrap();
-            panic!(
-                "This episode has not started yet, please wait {} days, {} hours, {} minutes, {} seconds for genesis",
-                days, hours, mins, secs,
-            )
-        }
-    }
 
     if let Some(end) = *END_TIMESTAMP {
         if now > end {
@@ -157,40 +154,6 @@ async fn launch(
         }
     }
 
-    #[cfg(not(feature = "bootstrap_server"))]
-    {
-        use massa_models::config::constants::DOWNTIME_END_TIMESTAMP;
-        use massa_models::config::constants::DOWNTIME_START_TIMESTAMP;
-
-        // Simulate downtime
-        // last_start_period should be set to trigger after the DOWNTIME_END_TIMESTAMP
-        #[cfg(not(feature = "bootstrap_server"))]
-        if now >= DOWNTIME_START_TIMESTAMP && now <= DOWNTIME_END_TIMESTAMP {
-            let (days, hours, mins, secs) = DOWNTIME_END_TIMESTAMP
-                .saturating_sub(now)
-                .days_hours_mins_secs()
-                .unwrap();
-
-            if let Ok(Some(end_period)) =
-                massa_models::timeslots::get_latest_block_slot_at_timestamp(
-                    THREAD_COUNT,
-                    T0,
-                    *GENESIS_TIMESTAMP,
-                    DOWNTIME_END_TIMESTAMP,
-                )
-            {
-                panic!(
-                "We are in downtime! {} days, {} hours, {} minutes, {} seconds remaining to the end of the downtime. Downtime end period: {}",
-                days, hours, mins, secs, end_period.period
-            );
-            }
-
-            panic!(
-            "We are in downtime! {} days, {} hours, {} minutes, {} seconds remaining to the end of the downtime",
-            days, hours, mins, secs,
-        );
-        }
-    }
     // Storage shared by multiple components.
     let shared_storage: Storage = Storage::create_root();
 
@@ -241,6 +204,7 @@ async fn launch(
         endorsement_count: ENDORSEMENT_COUNT,
         max_executed_denunciations_length: MAX_DENUNCIATION_CHANGES_LENGTH,
         max_denunciations_per_block_header: MAX_DENUNCIATIONS_PER_BLOCK_HEADER,
+        ledger_backup_periods_interval: SETTINGS.ledger.ledger_backup_periods_interval,
         t0: T0,
         genesis_timestamp: *GENESIS_TIMESTAMP,
     };
@@ -274,6 +238,7 @@ async fn launch(
         max_final_state_elements_size: MAX_BOOTSTRAP_FINAL_STATE_PARTS_SIZE.try_into().unwrap(),
         max_versioning_elements_size: MAX_BOOTSTRAP_VERSIONING_ELEMENTS_SIZE.try_into().unwrap(),
         thread_count: THREAD_COUNT,
+        max_ledger_backups: SETTINGS.ledger.max_ledger_backups,
     };
     let db = Arc::new(RwLock::new(
         Box::new(MassaDB::new(db_config)) as Box<(dyn MassaDBController + 'static)>
@@ -329,7 +294,7 @@ async fn launch(
             None => {
                 // The node is started in a normal way
                 // Read the mip list supported by the current software
-                // The resulting MIP store will likely be updated by the boostrap process in order
+                // The resulting MIP store will likely be updated by the bootstrap process in order
                 // to get the latest information for the MIP store (new states, votes...)
 
                 let mip_list = get_mip_list();
@@ -404,6 +369,7 @@ async fn launch(
         mip_store_stats_block_considered: MIP_STORE_STATS_BLOCK_CONSIDERED,
         max_denunciations_per_block_header: MAX_DENUNCIATIONS_PER_BLOCK_HEADER,
         max_denunciation_changes_length: MAX_DENUNCIATION_CHANGES_LENGTH,
+        chain_id: *CHAINID,
     };
 
     let bootstrap_state = match get_state(
@@ -459,7 +425,24 @@ async fn launch(
                 T0,
                 *GENESIS_TIMESTAMP,
             )
-            .expect("Mip store is not consistent with shutdown period")
+            .expect("Mip store is not consistent with shutdown period");
+
+        // If we are before a network restart, print the hash to make it easier to debug bootstrapping issues
+        let now = MassaTime::now();
+        let last_start_slot = Slot::new(
+            final_state.read().get_last_start_period(),
+            THREAD_COUNT.saturating_sub(1),
+        );
+        let last_start_slot_timestamp =
+            get_block_slot_timestamp(THREAD_COUNT, T0, *GENESIS_TIMESTAMP, last_start_slot)
+                .expect("Can't get timestamp for last_start_slot");
+        if now < last_start_slot_timestamp {
+            let final_state_hash = final_state.read().get_fingerprint();
+            info!(
+                "final_state hash before network restarts at slot {}: {}",
+                last_start_slot, final_state_hash
+            );
+        }
     }
 
     // Storage costs constants
@@ -477,6 +460,14 @@ async fn launch(
         SETTINGS.execution.wasm_gas_costs_file.clone(),
     )
     .expect("Failed to load gas costs");
+
+    let block_dump_folder_path = SETTINGS.block_dump.block_dump_folder_path.clone();
+    if !block_dump_folder_path.exists() {
+        info!("Current folder: {:?}", std::env::current_dir().unwrap());
+        info!("Creating dump folder: {:?}", block_dump_folder_path);
+        std::fs::create_dir_all(block_dump_folder_path.clone())
+            .expect("Cannot create dump block folder");
+    }
 
     // launch execution module
     let execution_config = ExecutionConfig {
@@ -517,6 +508,16 @@ async fn launch(
         max_event_size: MAX_EVENT_DATA_SIZE,
         max_function_length: MAX_FUNCTION_NAME_LENGTH,
         max_parameter_length: MAX_PARAMETERS_SIZE,
+        chain_id: *CHAINID,
+        #[cfg(feature = "execution-trace")]
+        broadcast_traces_enabled: true,
+        #[cfg(not(feature = "execution-trace"))]
+        broadcast_traces_enabled: false,
+        broadcast_slot_execution_traces_channel_capacity: SETTINGS
+            .execution
+            .broadcast_slot_execution_traces_channel_capacity,
+        max_execution_traces_slot_limit: SETTINGS.execution.execution_traces_limit,
+        block_dump_folder_path,
     };
 
     let execution_channels = ExecutionChannels {
@@ -524,7 +525,28 @@ async fn launch(
             execution_config.broadcast_slot_execution_output_channel_capacity,
         )
         .0,
+        #[cfg(feature = "execution-trace")]
+        slot_execution_traces_sender: broadcast::channel(
+            execution_config.broadcast_slot_execution_traces_channel_capacity,
+        )
+        .0,
     };
+
+    cfg_if! {
+        if #[cfg(all(feature = "dump-block", feature = "db_storage_backend"))] {
+            let block_storage_backend = Arc::new(RwLock::new(
+                RocksDBStorageBackend::new(
+                execution_config.block_dump_folder_path.clone(), SETTINGS.block_dump.max_blocks),
+            ));
+        } else if #[cfg(all(feature = "dump-block", feature = "file_storage_backend"))] {
+            let block_storage_backend = Arc::new(RwLock::new(
+                FileStorageBackend::new(
+                execution_config.block_dump_folder_path.clone(), SETTINGS.block_dump.max_blocks),
+            ));
+        } else if #[cfg(feature = "dump-block")] {
+            compile_error!("feature dump-block requise either db_storage_backend or file_storage_backend");
+        }
+    }
 
     let (execution_manager, execution_controller) = start_execution_worker(
         execution_config,
@@ -534,6 +556,8 @@ async fn launch(
         execution_channels.clone(),
         node_wallet.clone(),
         massa_metrics.clone(),
+        #[cfg(feature = "dump-block")]
+        block_storage_backend.clone(),
     );
 
     // launch pool controller
@@ -565,6 +589,7 @@ async fn launch(
         periods_per_cycle: PERIODS_PER_CYCLE,
         denunciation_expire_periods: DENUNCIATION_EXPIRE_PERIODS,
         max_denunciations_per_block_header: MAX_DENUNCIATIONS_PER_BLOCK_HEADER,
+        minimal_fees: SETTINGS.pool.minimal_fees,
         last_start_period: final_state.read().get_last_start_period(),
     };
 
@@ -681,6 +706,7 @@ async fn launch(
         try_connection_timer_same_peer: SETTINGS.protocol.try_connection_timer_same_peer,
         test_oldest_peer_cooldown: SETTINGS.protocol.test_oldest_peer_cooldown,
         rate_limit: SETTINGS.protocol.rate_limit,
+        chain_id: *CHAINID,
     };
 
     let (protocol_controller, protocol_channels) =
@@ -717,6 +743,7 @@ async fn launch(
         force_keep_final_periods_without_ops: SETTINGS
             .consensus
             .force_keep_final_periods_without_ops,
+        chain_id: *CHAINID,
     };
 
     let (consensus_event_sender, consensus_event_receiver) =
@@ -776,6 +803,7 @@ async fn launch(
         stop_production_when_zero_connections: SETTINGS
             .factory
             .stop_production_when_zero_connections,
+        chain_id: *CHAINID,
     };
     let factory_channels = FactoryChannels {
         selector: selector_controller.clone(),
@@ -848,6 +876,9 @@ async fn launch(
         t0: T0,
         periods_per_cycle: PERIODS_PER_CYCLE,
         last_start_period: final_state.read().get_last_start_period(),
+        chain_id: *CHAINID,
+        deferred_credits_delta: SETTINGS.api.deferred_credits_delta,
+        minimal_fees: SETTINGS.pool.minimal_fees,
     };
 
     // spawn Massa API
@@ -880,6 +911,7 @@ async fn launch(
             &SETTINGS.grpc.public,
             keypair.clone(),
             &final_state,
+            SETTINGS.pool.minimal_fees,
         );
 
         let grpc_public_api = MassaPublicGrpc {
@@ -920,6 +952,7 @@ async fn launch(
             &SETTINGS.grpc.private,
             keypair.clone(),
             &final_state,
+            SETTINGS.pool.minimal_fees,
         );
 
         let bs_white_black_list = bootstrap_manager
@@ -1074,6 +1107,7 @@ fn configure_grpc(
     settings: &GrpcSettings,
     keypair: KeyPair,
     final_state: &Arc<RwLock<dyn FinalStateController>>,
+    minimal_fees: Amount,
 ) -> GrpcConfig {
     GrpcConfig {
         name,
@@ -1139,6 +1173,8 @@ fn configure_grpc(
             .clone(),
         client_certificate_path: settings.client_certificate_path.clone(),
         client_private_key_path: settings.client_private_key_path.clone(),
+        chain_id: *CHAINID,
+        minimal_fees,
     }
 }
 
@@ -1273,7 +1309,11 @@ struct Args {
 }
 
 /// Load wallet, asking for passwords if necessary
-fn load_wallet(password: Option<String>, path: &Path) -> anyhow::Result<Arc<RwLock<Wallet>>> {
+fn load_wallet(
+    password: Option<String>,
+    path: &Path,
+    chain_id: u64,
+) -> anyhow::Result<Arc<RwLock<Wallet>>> {
     let password = if path.is_dir() {
         password.unwrap_or_else(|| {
             Password::new()
@@ -1293,6 +1333,7 @@ fn load_wallet(password: Option<String>, path: &Path) -> anyhow::Result<Arc<RwLo
     Ok(Arc::new(RwLock::new(Wallet::new(
         PathBuf::from(path),
         password,
+        chain_id,
     )?)))
 }
 
@@ -1349,6 +1390,7 @@ async fn run(args: Args) -> anyhow::Result<()> {
     let node_wallet = load_wallet(
         cur_args.password.clone(),
         &SETTINGS.factory.staking_wallet_path,
+        *CHAINID,
     )?;
 
     // interrupt signal listener

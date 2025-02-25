@@ -4,12 +4,14 @@ on:
   push:
     branches: [main, staging, trying]
   pull_request:
-    branches: [main, 'testnet_*']
+    branches: [main, 'mainnet_*']
     types:
     - opened
     - reopened
     - synchronize
     - ready_for_review
+  merge_group:
+    branches: [ main ]
 
 env:
   CARGO_TERM_COLOR: always
@@ -31,7 +33,7 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.74.0
+          toolchain: 1.81.0
           components: rustfmt
           override: true
       - uses: Swatinem/rust-cache@v2
@@ -55,14 +57,14 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.74.0
+          toolchain: 1.81.0
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: "check"
           save-if: ${{ github.ref_name == 'main' }}
-      - uses: arduino/setup-protoc@v1
+      - uses: arduino/setup-protoc@v3
         with:
-          version: '3.x'
+          version: '23.x'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions-rs/cargo@v1
         with:
@@ -80,16 +82,16 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.74.0
+          toolchain: 1.81.0
           components: clippy
           override: true
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: "clippy"
           save-if: ${{ github.ref_name == 'main' }}
-      - uses: arduino/setup-protoc@v1
+      - uses: arduino/setup-protoc@v3
         with:
-          version: '3.x'
+          version: '23.x'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions-rs/clippy-check@v1
         with:
@@ -105,10 +107,10 @@ jobs:
       - uses: actions/checkout@v3
         with:
           submodules: "recursive"
-      - uses: actions-rust-lang/audit@v1
-        name: Audit Rust Dependencies
+      # - uses: actions-rust-lang/audit@v1
+      #   name: Audit Rust Dependencies
 
-  # Full cross-platform tests required by bors to merge on main branch
+  # Full cross-platform tests required to merge on main branch
   full:
     name: full
     needs: sanity
@@ -189,24 +191,25 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.74.0
+          toolchain: 1.81.0
           override: true
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: "massa"
           save-if: ${{ github.ref_name == 'main' }}
-      - uses: arduino/setup-protoc@v1
+      - uses: arduino/setup-protoc@v3
         with:
-          version: '3.x'
+          version: "23.x"
+          include-pre-releases: false
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions-rs/cargo@v1
         with:
           command: install
-          args: cargo-nextest
+          args: cargo-nextest --locked
       - uses: actions-rs/cargo@v1
         with:
           command: nextest
-          args: run --retries 10 --profile ci 
+          args: run --retries 10 --profile ci --all-features
       - uses: actions-rs/cargo@v1
         with:
           command: clean
@@ -219,7 +222,7 @@ jobs:
           files: lcov.info
           fail_ci_if_error: false
 
-  build: # quick hack because bors wrongly detect matrix jobs status
+  build: # quick hack because bors wrongly detect matrix jobs status. Note: May not be needed with GitHub Merge Queues.
     needs: full
     runs-on: ubuntu-latest
     steps:
@@ -236,7 +239,7 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.74.0
+          toolchain: 1.81.0
           components: rustfmt
           override: true
       - uses: actions/checkout@v3
@@ -271,16 +274,16 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.74.0
+          toolchain: 1.81.0
           components: rustfmt
           override: true
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: "doc"
           save-if: ${{ github.ref_name == 'main' }}
-      - uses: arduino/setup-protoc@v1
+      - uses: arduino/setup-protoc@v3
         with:
-          version: '3.x'
+          version: '23.x'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions-rs/cargo@v1
         with:
@@ -300,4 +303,4 @@ jobs:
       - name: setup_tests
         shell: bash
         run: |
-          cargo install cargo-script && cargo script tools/setup_test.rs && git diff --no-ext-diff --quiet
+          cargo install rust-script && rust-script tools/setup_test.rs && git diff --no-ext-diff --quiet

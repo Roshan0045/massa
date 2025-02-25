@@ -63,12 +63,8 @@ impl Serializer<OperationMessage> for OperationMessageSerializer {
         value: &OperationMessage,
         buffer: &mut Vec<u8>,
     ) -> Result<(), SerializeError> {
-        self.id_serializer.serialize(
-            &MessageTypeId::from(value).try_into().map_err(|_| {
-                SerializeError::GeneralError(String::from("Failed to serialize id"))
-            })?,
-            buffer,
-        )?;
+        self.id_serializer
+            .serialize(&MessageTypeId::from(value).into(), buffer)?;
         match value {
             OperationMessage::OperationsAnnouncement(operations) => {
                 self.operation_prefix_ids_serializer
@@ -111,6 +107,8 @@ pub struct OperationMessageDeserializerArgs {
     pub max_op_datastore_key_length: u8,
     /// Maximum size of a op datastore value
     pub max_op_datastore_value_length: u64,
+    /// Chain id
+    pub chain_id: u64,
 }
 
 impl OperationMessageDeserializer {
@@ -128,6 +126,7 @@ impl OperationMessageDeserializer {
                 args.max_op_datastore_entry_count,
                 args.max_op_datastore_key_length,
                 args.max_op_datastore_value_length,
+                args.chain_id,
             ),
         }
     }

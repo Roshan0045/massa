@@ -20,7 +20,7 @@ use massa_ledger_exports::{LedgerEntry, SetUpdateOrDelete};
 use massa_ledger_worker::test_exports::create_final_ledger;
 use massa_models::bytecode::Bytecode;
 use massa_models::config::{
-    BOOTSTRAP_RANDOMNESS_SIZE_BYTES, CONSENSUS_BOOTSTRAP_PART_SIZE, ENDORSEMENT_COUNT,
+    BOOTSTRAP_RANDOMNESS_SIZE_BYTES, CHAINID, CONSENSUS_BOOTSTRAP_PART_SIZE, ENDORSEMENT_COUNT,
     MAX_ADVERTISE_LENGTH, MAX_BOOTSTRAP_BLOCKS, MAX_BOOTSTRAP_ERROR_LENGTH,
     MAX_BOOTSTRAP_FINAL_STATE_PARTS_SIZE, MAX_BOOTSTRAP_VERSIONING_ELEMENTS_SIZE,
     MAX_CONSENSUS_BLOCKS_IDS, MAX_DATASTORE_ENTRY_COUNT, MAX_DATASTORE_KEY_LENGTH,
@@ -353,7 +353,7 @@ pub fn get_bootstrap_config(bootstrap_public_key: NodeId) -> BootstrapConfig {
         max_simultaneous_bootstraps: 2,
         ip_list_max_size: 10,
         per_ip_min_interval: MassaTime::from_millis(10000),
-        rate_limit: std::u64::MAX,
+        rate_limit: u64::MAX,
         max_datastore_key_length: MAX_DATASTORE_KEY_LENGTH,
         randomness_size_bytes: BOOTSTRAP_RANDOMNESS_SIZE_BYTES,
         thread_count: THREAD_COUNT,
@@ -384,13 +384,14 @@ pub fn get_bootstrap_config(bootstrap_public_key: NodeId) -> BootstrapConfig {
         mip_store_stats_block_considered: MIP_STORE_STATS_BLOCK_CONSIDERED,
         max_denunciations_per_block_header: MAX_DENUNCIATIONS_PER_BLOCK_HEADER,
         max_denunciation_changes_length: MAX_DENUNCIATION_CHANGES_LENGTH,
+        chain_id: *CHAINID,
     }
 }
 
 fn gen_export_active_blocks<R: Rng>(rng: &mut R) -> ExportActiveBlock {
     let keypair = KeyPair::generate(0).unwrap();
     let block = gen_random_block(&keypair, rng)
-        .new_verifiable(BlockSerializer::new(), &keypair)
+        .new_verifiable(BlockSerializer::new(), &keypair, *CHAINID)
         .unwrap();
     let parents = (0..32)
         .map(|_| (gen_random_block_id(rng), rng.gen()))
@@ -512,7 +513,7 @@ fn gen_random_block<R: Rng>(keypair: &KeyPair, rng: &mut R) -> Block {
         };
 
         let endorsement = endorsement
-            .new_verifiable(EndorsementSerializer::new(), keypair)
+            .new_verifiable(EndorsementSerializer::new(), keypair, *CHAINID)
             .unwrap();
         endorsements.push(endorsement);
     }
@@ -531,7 +532,7 @@ fn gen_random_block<R: Rng>(keypair: &KeyPair, rng: &mut R) -> Block {
         endorsements,
         denunciations,
     }
-    .new_verifiable(BlockHeaderSerializer::new(), keypair)
+    .new_verifiable(BlockHeaderSerializer::new(), keypair, *CHAINID)
     .unwrap();
     let mut operations = vec![];
     for _ in 0..rng.gen_range(0..MAX_OPERATIONS_PER_BLOCK) {
@@ -889,7 +890,7 @@ impl BootstrapServerMessage {
                 };
 
                 let endorsement = endorsement
-                    .new_verifiable(EndorsementSerializer::new(), &keypair)
+                    .new_verifiable(EndorsementSerializer::new(), &keypair, *CHAINID)
                     .unwrap();
                 endorsements.push(endorsement);
             }
@@ -929,7 +930,7 @@ impl BootstrapServerMessage {
                 endorsements: endorsements.clone(),
                 denunciations,
             }
-            .new_verifiable(BlockHeaderSerializer::new(), &keypair)
+            .new_verifiable(BlockHeaderSerializer::new(), &keypair, *CHAINID)
             .unwrap();
 
             let block = Block {
@@ -944,7 +945,7 @@ impl BootstrapServerMessage {
                     .collect(),
                 is_final: false,
                 block: block
-                    .new_verifiable(BlockSerializer::new(), &keypair)
+                    .new_verifiable(BlockSerializer::new(), &keypair, *CHAINID)
                     .unwrap(),
             };
             for _ in 0..block_nb {
@@ -1248,8 +1249,10 @@ pub fn parametric_test<F, T>(
     F: Fn(&T, &mut SmallRng),
 {
     #[cfg(feature = "heavy_testing")]
-    let duration = duration * 120;
-
+    let duration = match std::env::var("NEXTEST") {
+        Ok(s) if s == String::from("1") => duration,
+        _ => duration * 120,
+    };
     for reg in regressions {
         println!("[*] Regression {reg}");
         let mut rng = SmallRng::seed_from_u64(reg);

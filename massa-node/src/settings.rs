@@ -4,7 +4,7 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use massa_bootstrap::IpType;
-use massa_models::{config::build_massa_settings, node::NodeId};
+use massa_models::{amount::Amount, config::build_massa_settings, node::NodeId};
 use massa_protocol_exports::PeerCategoryInfo;
 use massa_time::MassaTime;
 use serde::Deserialize;
@@ -34,6 +34,9 @@ pub struct ExecutionSettings {
     pub snip_amount: usize,
     /// slot execution outputs channel capacity
     pub broadcast_slot_execution_output_channel_capacity: usize,
+    /// slot execution traces channel capacity
+    pub broadcast_slot_execution_traces_channel_capacity: usize,
+    pub execution_traces_limit: usize,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -47,6 +50,8 @@ pub struct LedgerSettings {
     pub disk_ledger_path: PathBuf,
     pub final_history_length: usize,
     pub initial_deferred_credits_path: Option<PathBuf>,
+    pub ledger_backup_periods_interval: u64,
+    pub max_ledger_backups: u64,
 }
 
 /// Bootstrap configuration.
@@ -86,6 +91,7 @@ pub struct FactorySettings {
 }
 
 /// Pool configuration, read from a file configuration
+#[allow(dead_code)]
 #[derive(Debug, Deserialize, Clone)]
 pub struct PoolSettings {
     pub max_operation_pool_size: usize,
@@ -98,6 +104,8 @@ pub struct PoolSettings {
     pub broadcast_endorsements_channel_capacity: usize,
     /// operations channel capacity
     pub broadcast_operations_channel_capacity: usize,
+    /// operations minimum fees for block creator
+    pub minimal_fees: Amount,
 }
 
 /// API and server configuration, read from a file configuration.
@@ -121,6 +129,7 @@ pub struct APISettings {
     pub enable_ws: bool,
     // whether to broadcast for blocks, endorsement and operations
     pub enable_broadcast: bool,
+    pub deferred_credits_delta: MassaTime,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -139,6 +148,7 @@ pub struct Settings {
     pub grpc: GrpcApiSettings,
     pub metrics: MetricsSettings,
     pub versioning: VersioningSettings,
+    pub block_dump: BlockDumpSettings,
 }
 
 /// Consensus configuration
@@ -185,6 +195,7 @@ pub struct MetricsSettings {
 }
 
 /// Protocol Configuration, read from toml user configuration file
+#[allow(dead_code)]
 #[derive(Debug, Deserialize, Clone)]
 pub struct ProtocolSettings {
     /// after `ask_block_timeout` milliseconds we try to ask a block to another node
@@ -374,6 +385,15 @@ pub struct GrpcApiSettings {
 pub struct VersioningSettings {
     // Warn user to update its node if we reach this percentage for announced network versions
     pub(crate) mip_stats_warn_announced_version: u32,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct BlockDumpSettings {
+    /// Where to dump blocks
+    pub(crate) block_dump_folder_path: PathBuf,
+    #[cfg(feature = "dump-block")]
+    /// Number of blocks to keep
+    pub(crate) max_blocks: u64,
 }
 
 #[cfg(test)]

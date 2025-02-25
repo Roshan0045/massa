@@ -1,11 +1,12 @@
 // Copyright (c) 2023 MASSA LABS <info@massa.net>
 
 use crate::tests::mock::grpc_public_service;
+use core::panic;
 use massa_consensus_exports::MockConsensusController;
 use massa_execution_exports::{ExecutionOutput, MockExecutionController, SlotExecutionOutput};
 use massa_models::{
-    address::Address, block::FilledBlock, secure_share::SecureShareSerializer, slot::Slot,
-    stats::ExecutionStats,
+    address::Address, amount::Amount, block::FilledBlock, secure_share::SecureShareSerializer,
+    slot::Slot, stats::ExecutionStats,
 };
 use massa_pool_exports::MockPoolController;
 use massa_proto_rs::massa::{
@@ -26,7 +27,7 @@ use massa_protocol_exports::{
 use massa_serialization::Serializer;
 use massa_signature::KeyPair;
 use massa_time::MassaTime;
-use std::{net::SocketAddr, ops::Add, time::Duration};
+use std::{net::SocketAddr, ops::Add, str::FromStr, time::Duration};
 use tokio_stream::StreamExt;
 
 #[tokio::test]
@@ -1067,6 +1068,13 @@ async fn new_slot_execution_outputs() {
         block_info: None,
         state_changes: massa_final_state::StateChanges::default(),
         events: Default::default(),
+        #[cfg(feature = "execution-trace")]
+        slot_trace: None,
+        #[cfg(feature = "dump-block")]
+        storage: None,
+        deferred_credits_execution: vec![],
+        cancel_async_message_execution: vec![],
+        auto_sell_execution: vec![],
     };
 
     let (tx_request, rx) = tokio::sync::mpsc::channel(10);
@@ -1224,8 +1232,89 @@ async fn new_slot_execution_outputs() {
 }
 
 #[tokio::test]
+async fn send_operations_low_fee() {
+    let addr: SocketAddr = "[::]:4000".parse().unwrap();
+    let mut public_server = grpc_public_service(&addr);
+    public_server.grpc_config.minimal_fees = Amount::from_str("0.01").unwrap();
+
+    let mut pool_ctrl = Box::new(MockPoolController::new());
+    pool_ctrl.expect_clone_box().returning(|| {
+        let mut pool_ctrl = Box::new(MockPoolController::new());
+
+        pool_ctrl.expect_add_operations().returning(|_| ());
+
+        pool_ctrl
+    });
+
+    let mut protocol_ctrl = Box::new(MockProtocolController::new());
+    protocol_ctrl.expect_clone_box().returning(|| {
+        let mut ctrl = Box::new(MockProtocolController::new());
+
+        ctrl.expect_propagate_operations().returning(|_| Ok(()));
+
+        ctrl
+    });
+
+    public_server.pool_controller = pool_ctrl;
+    public_server.protocol_controller = protocol_ctrl;
+
+    let config = public_server.grpc_config.clone();
+    let stop_handle = public_server.serve(&config).await.unwrap();
+
+    let (tx, rx) = tokio::sync::mpsc::channel(10);
+    let request_stream = tokio_stream::wrappers::ReceiverStream::new(rx);
+
+    let mut public_client = PublicServiceClient::connect(format!(
+        "grpc://localhost:{}",
+        addr.to_string().split(':').last().unwrap()
+    ))
+    .await
+    .unwrap();
+
+    let mut resp_stream = public_client
+        .send_operations(request_stream)
+        .await
+        .unwrap()
+        .into_inner();
+
+    let keypair = KeyPair::generate(0).unwrap();
+    // Note: expire_period is set to be higher than current slot (which is computed from config genesis timestamp)
+    //       CHeck send_operation.rs where last_slot value is computed
+    let op2 = create_operation_with_expire_period(&keypair, 11950000);
+    let mut buffer: Vec<u8> = Vec::new();
+    SecureShareSerializer::new()
+        .serialize(&op2, &mut buffer)
+        .unwrap();
+
+    tx.send(SendOperationsRequest {
+        operations: vec![buffer.clone()],
+    })
+    .await
+    .unwrap();
+
+    let result = tokio::time::timeout(Duration::from_secs(5), resp_stream.next())
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap()
+        .result
+        .unwrap();
+
+    match result {
+        massa_proto_rs::massa::api::v1::send_operations_response::Result::OperationIds(_ope_id) => {
+            panic!("should be error");
+        }
+        massa_proto_rs::massa::api::v1::send_operations_response::Result::Error(e) => {
+            assert_eq!(e.message, "invalid operation(s): Invalid argument error: Operation fee is lower than the minimal fee. Your operation will never be included in a block.");
+        }
+    }
+
+    stop_handle.stop();
+}
+
+#[tokio::test]
 async fn send_operations() {
-    let addr: SocketAddr = "[::]:4023".parse().unwrap();
+    let addr: SocketAddr = "[::]:4033".parse().unwrap();
     let mut public_server = grpc_public_service(&addr);
 
     let mut pool_ctrl = Box::new(MockPoolController::new());
@@ -1321,7 +1410,9 @@ async fn send_operations() {
         }
     }
 
-    let op2 = create_operation_with_expire_period(&keypair, 550000);
+    // Note: expire_period is set to be higher than current slot (which is computed from config genesis timestamp)
+    //       CHeck send_operation.rs where last_slot value is computed
+    let op2 = create_operation_with_expire_period(&keypair, 11950000);
     let mut buffer: Vec<u8> = Vec::new();
     SecureShareSerializer::new()
         .serialize(&op2, &mut buffer)
@@ -1346,8 +1437,8 @@ async fn send_operations() {
             assert_eq!(ope_id.operation_ids.len(), 1);
             assert_eq!(ope_id.operation_ids[0], op2.id.to_string());
         }
-        massa_proto_rs::massa::api::v1::send_operations_response::Result::Error(_) => {
-            panic!("should be ok")
+        massa_proto_rs::massa::api::v1::send_operations_response::Result::Error(e) => {
+            panic!("Send operations error: {:?}", e);
         }
     }
 

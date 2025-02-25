@@ -26,6 +26,10 @@ use super::{
     SharedPeerDB,
 };
 use crate::wrap_network::ActiveConnectionsTrait;
+
+const THREAD_NAME: &str = "pph-tester";
+static_assertions::const_assert!(THREAD_NAME.len() < 16);
+
 pub struct Tester {
     pub handler: Option<JoinHandle<()>>,
 }
@@ -246,7 +250,7 @@ impl Tester {
             }
 
             if let Err(e) = socket.shutdown(std::net::Shutdown::Both) {
-                tracing::log::error!("Failed to shutdown socket for {} : {}", addr, e);
+                tracing::error!("Failed to shutdown socket for {} : {}", addr, e);
             }
             res
         };
@@ -275,7 +279,7 @@ impl Tester {
         massa_metrics: MassaMetrics,
     ) -> Self {
         let handle = std::thread::Builder::new()
-        .name("protocol-peer-handler-tester".to_string())
+        .name(THREAD_NAME.to_string())
         .spawn(move || {
             let db = peer_db;
             let active_connections = active_connections.clone();
@@ -403,7 +407,7 @@ impl Tester {
                                             //     &OutConnectionConfig::Tcp(Box::new(TcpOutConnectionConfig::new(protocol_config.read_write_limit_bytes_per_second / 10, Duration::from_millis(100)))),
                                             // );
 
-                                            tracing::log::debug!("{:?}", res);
+                                            tracing::debug!("{:?}", res);
                                         }
                                     };
                                 }

@@ -4,15 +4,21 @@ use std::{
     sync::Arc,
 };
 
+#[cfg(all(feature = "file_storage_backend", not(feature = "db_storage_backend")))]
+use crate::storage_backend::FileStorageBackend;
+#[cfg(feature = "db_storage_backend")]
+use crate::storage_backend::RocksDBStorageBackend;
+use cfg_if::cfg_if;
 use massa_db_exports::{MassaDBConfig, MassaDBController, ShareableMassaDBController};
 use massa_db_worker::MassaDB;
 use massa_execution_exports::{
     ExecutionBlockMetadata, ExecutionChannels, ExecutionConfig, ExecutionController,
-    ExecutionError, ExecutionManager,
+    ExecutionError, ExecutionManager, SlotExecutionOutput,
 };
 use massa_final_state::{FinalStateController, MockFinalStateController};
 use massa_ledger_exports::MockLedgerControllerWrapper;
 use massa_metrics::MassaMetrics;
+use massa_models::config::CHAINID;
 use massa_models::{
     address::Address,
     amount::Amount,
@@ -39,6 +45,9 @@ use tokio::sync::broadcast;
 
 use crate::start_execution_worker;
 
+#[cfg(feature = "execution-trace")]
+use massa_execution_exports::types_trace_info::SlotAbiCallStack;
+
 pub struct ExecutionForeignControllers {
     pub selector_controller: Box<MockSelectorControllerWrapper>,
     pub final_state: Arc<RwLock<MockFinalStateController>>,
@@ -55,6 +64,7 @@ impl ExecutionForeignControllers {
             max_final_state_elements_size: 100_000,
             max_versioning_elements_size: 100_000,
             thread_count: THREAD_COUNT,
+            max_ledger_backups: 10,
         };
 
         let db = Arc::new(RwLock::new(
@@ -69,11 +79,16 @@ impl ExecutionForeignControllers {
     }
 }
 
+#[allow(dead_code)]
 pub struct ExecutionTestUniverse {
     pub module_controller: Box<dyn ExecutionController>,
     pub storage: Storage,
     pub final_state: Arc<RwLock<dyn FinalStateController>>,
     module_manager: Box<dyn ExecutionManager>,
+    pub broadcast_channel_receiver: Option<tokio::sync::broadcast::Receiver<SlotExecutionOutput>>,
+    #[cfg(feature = "execution-trace")]
+    pub broadcast_traces_channel_receiver:
+        Option<tokio::sync::broadcast::Receiver<(SlotAbiCallStack, bool)>>,
 }
 
 impl TestUniverse for ExecutionTestUniverse {
@@ -87,15 +102,37 @@ impl TestUniverse for ExecutionTestUniverse {
             warn_announced_version_ratio: Ratio::new_raw(30, 100),
         };
         let mip_store = MipStore::try_from(([], mip_stats_config)).unwrap();
-        let (tx, _) = broadcast::channel(16);
+        let (tx, rx) = broadcast::channel(16);
+        #[cfg(feature = "execution-trace")]
+        let (tx_traces, rx_traces) = broadcast::channel(16);
+        let exec_channels = ExecutionChannels {
+            slot_execution_output_sender: tx,
+            #[cfg(feature = "execution-trace")]
+            slot_execution_traces_sender: tx_traces,
+        };
+
+        cfg_if! {
+            if #[cfg(all(feature = "dump-block", feature = "db_storage_backend"))] {
+                let block_storage_backend = Arc::new(RwLock::new(RocksDBStorageBackend::new(
+                    config.block_dump_folder_path.clone(),
+                    10
+                )));
+            } else if #[cfg(all(feature = "dump-block", feature = "file_storage_backend"))] {
+                let block_storage_backend = Arc::new(RwLock::new(FileStorageBackend::new(
+                    config.block_dump_folder_path.clone(),
+                    10
+                )));
+            } else if #[cfg(feature = "dump-block")] {
+                compile_error!("feature dump-block require either db_storage_backend or file_storage_backend");
+            }
+        }
+
         let (module_manager, module_controller) = start_execution_worker(
             config.clone(),
             controllers.final_state.clone(),
             controllers.selector_controller,
             mip_store,
-            ExecutionChannels {
-                slot_execution_output_sender: tx,
-            },
+            exec_channels,
             Arc::new(RwLock::new(create_test_wallet(Some(PreHashMap::default())))),
             MassaMetrics::new(
                 false,
@@ -104,13 +141,19 @@ impl TestUniverse for ExecutionTestUniverse {
                 std::time::Duration::from_secs(5),
             )
             .0,
+            #[cfg(feature = "dump-block")]
+            block_storage_backend.clone(),
         );
+
         init_execution_worker(&config, &storage, module_controller.clone());
         let universe = Self {
             storage,
             final_state: controllers.final_state,
             module_controller,
             module_manager,
+            broadcast_channel_receiver: Some(rx),
+            #[cfg(feature = "execution-trace")]
+            broadcast_traces_channel_receiver: Some(rx_traces),
         };
         universe.initialize();
         universe
@@ -147,6 +190,7 @@ impl ExecutionTestUniverse {
             },
             OperationSerializer::new(),
             sender_keypair,
+            *CHAINID,
         )?;
         Ok(op)
     }
@@ -176,6 +220,7 @@ impl ExecutionTestUniverse {
             },
             OperationSerializer::new(),
             sender_keypair,
+            *CHAINID,
         )?;
         Ok(op)
     }

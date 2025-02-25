@@ -35,6 +35,10 @@ use crate::{
     wrap_network::NetworkController,
 };
 
+// protocol-connectivity
+const THREAD_NAME: &str = "p-connectivity";
+static_assertions::const_assert!(THREAD_NAME.len() < 16);
+
 #[derive(Clone)]
 pub enum ConnectivityCommand {
     Stop,
@@ -82,7 +86,7 @@ pub(crate) fn start_connectivity_thread(
     massa_metrics: MassaMetrics,
 ) -> Result<(MassaSender<ConnectivityCommand>, JoinHandle<()>), ProtocolError> {
     let handle = std::thread::Builder::new()
-    .name("protocol-connectivity".to_string())
+    .name(THREAD_NAME.to_string())
     .spawn({
         let sender_endorsements_propagation_ext = protocol_channels.endorsement_handler_propagation.0.clone();
         let sender_blocks_retrieval_ext = protocol_channels.block_handler_retrieval.0.clone();
@@ -270,7 +274,7 @@ pub(crate) fn start_connectivity_thread(
                                             if let Some(slots) = connection_slots.get_mut(peer_category.as_str()) {
                                                 *slots = slots.saturating_sub(1);
                                             } else {
-                                                tracing::log::warn!("Category of connected peer {peer_category} not known in configuration"); 
+                                                tracing::warn!("Category of connected peer {peer_category} not known in configuration");
                                             }
                                         } else {
                                             let slots = connection_slots.get_mut("default").unwrap();
@@ -329,7 +333,7 @@ pub(crate) fn start_connectivity_thread(
 
                                             addresses_can_connect.push((*addr, connection_metadata, category_found));
                                         } else {
-                                            tracing::log::warn!("No listeners for the peer {peer_id}"); 
+                                            tracing::warn!("No listeners for the peer {peer_id}");
                                         }
                                     }
                                 }

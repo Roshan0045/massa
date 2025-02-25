@@ -668,13 +668,51 @@ mod test {
 
     #[test]
     fn test_address() {
+        let expected_user_addr =
+            Address::from_str("AU12fZLkHnLED3okr8Lduyty7dz9ZKkd24xMCc2JJWPcdmfn2eUEx").unwrap();
+        let expected_sc_addr =
+            Address::from_str("AS12fZLkHnLED3okr8Lduyty7dz9ZKkd24xMCc2JJWPcdmfn2eUEx").unwrap();
+
         let hash = massa_hash::Hash::compute_from("ADDR".as_bytes());
+        let actual_user_addr = Address::User(UserAddress::UserAddressV0(UserAddressV0(hash)));
+        let actual_sc_addr = Address::SC(SCAddress::SCAddressV0(SCAddressV0(hash)));
 
-        let user_addr_0 = Address::User(UserAddress::UserAddressV0(UserAddressV0(hash)));
-        let sc_addr_0 = Address::SC(SCAddress::SCAddressV0(SCAddressV0(hash)));
+        assert_eq!(actual_user_addr, expected_user_addr);
+        assert_eq!(actual_sc_addr, expected_sc_addr);
+    }
 
-        println!("user_addr_0: {}", user_addr_0);
-        println!("sc_addr_0: {}", sc_addr_0);
+    #[test]
+    fn test_address_errors() {
+        let expected_error_0 = "address parsing error: UnexpectedAddress".to_string();
+        let actual_error_0 = Address::from_str("UnexpectedAddress")
+            .unwrap_err()
+            .to_string();
+
+        let expected_error_1 = "address parsing error: in SCAddress from_str_without_prefixed_type: invalid checksum, calculated checksum: '[255, 246, 254, 58]', expected checksum: [188, 126, 221, 98]".to_string();
+        let actual_error_1 = Address::from_str("ASSomeUnexpectedAddress")
+            .unwrap_err()
+            .to_string();
+
+        let expected_error_2 = "address parsing error: in SCAddress from_str_without_prefixed_type: provided string contained invalid character '_' at byte 0".to_string();
+        let actual_error_2 = Address::from_str("AS_SomeUnexpectedAddress")
+            .unwrap_err()
+            .to_string();
+
+        let expected_error_3 = "address parsing error: in UserAddress from_str_without_prefixed_type: invalid checksum, calculated checksum: '[255, 246, 254, 58]', expected checksum: [188, 126, 221, 98]".to_string();
+        let actual_error_3 = Address::from_str("AUSomeUnexpectedAddress")
+            .unwrap_err()
+            .to_string();
+
+        let expected_error_4 = "address parsing error: in UserAddress from_str_without_prefixed_type: provided string contained invalid character '_' at byte 0".to_string();
+        let actual_error_4 = Address::from_str("AU_SomeUnexpectedAddress")
+            .unwrap_err()
+            .to_string();
+
+        assert_eq!(actual_error_0, expected_error_0);
+        assert_eq!(actual_error_1, expected_error_1);
+        assert_eq!(actual_error_2, expected_error_2);
+        assert_eq!(actual_error_3, expected_error_3);
+        assert_eq!(actual_error_4, expected_error_4);
     }
 
     #[test]
@@ -689,5 +727,16 @@ mod test {
         let thread_addr_1 = user_addr_1.get_thread(THREAD_COUNT);
 
         assert_ne!(thread_addr_0, thread_addr_1);
+    }
+
+    #[test]
+    fn test_address_serde() {
+        let expected_addr =
+            Address::from_str("AU12fZLkHnLED3okr8Lduyty7dz9ZKkd24xMCc2JJWPcdmfn2eUEx").unwrap();
+
+        let serialized = serde_json::to_string(&expected_addr).unwrap();
+        let actual_addr: Address = serde_json::from_str(&serialized).unwrap();
+
+        assert_eq!(actual_addr, expected_addr);
     }
 }

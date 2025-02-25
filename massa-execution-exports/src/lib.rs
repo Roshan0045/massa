@@ -41,6 +41,10 @@
 //!
 //! When the crate feature `test-exports` is enabled, tooling useful for test-exports purposes is exported.
 //! See `test_exports/mod.rs` for details.
+//!
+//! # Execution trace
+//!
+//! See documentation in types_trace_info.rs file.
 
 #![warn(missing_docs)]
 #![warn(unused_crate_dependencies)]
@@ -71,3 +75,11 @@ pub use types::{
 
 #[cfg(any(feature = "test-exports", feature = "gas_calibration"))]
 pub mod test_exports;
+
+/// types for execution-trace / execution-info
+pub mod types_trace_info;
+
+#[cfg(feature = "execution-trace")]
+pub use types_trace_info::{
+    AbiTrace, SCRuntimeAbiTraceType, SCRuntimeAbiTraceValue, SlotAbiCallStack, Transfer,
+};

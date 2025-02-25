@@ -25,6 +25,13 @@ use std::fmt::Display;
 use std::sync::Arc;
 use tracing::info;
 
+#[cfg(feature = "execution-trace")]
+use massa_execution_exports::types_trace_info::AbiTrace;
+#[cfg(feature = "execution-trace")]
+use massa_execution_exports::types_trace_info::SlotAbiCallStack;
+#[cfg(feature = "execution-trace")]
+use massa_execution_exports::types_trace_info::Transfer;
+
 /// structure used to communicate with execution thread
 pub(crate) struct ExecutionInputData {
     /// set stop to true to stop the thread
@@ -229,7 +236,7 @@ impl ExecutionController for ExecutionControllerImpl {
                 ExecutionQueryRequestItem::OpExecutionStatusCandidate(id) => {
                     let (speculative_v, _final_v) = execution_lock
                         .get_ops_exec_status(&[id])
-                        .get(0)
+                        .first()
                         .map(|(s_v, f_v)| (*s_v, *f_v))
                         .expect("expected one return value");
                     match speculative_v {
@@ -247,7 +254,7 @@ impl ExecutionController for ExecutionControllerImpl {
                 ExecutionQueryRequestItem::OpExecutionStatusFinal(id) => {
                     let (_speculative_v, final_v) = execution_lock
                         .get_ops_exec_status(&[id])
-                        .get(0)
+                        .first()
                         .map(|(s_v, f_v)| (*s_v, *f_v))
                         .expect("expected one return value");
                     match final_v {
@@ -431,7 +438,11 @@ impl ExecutionController for ExecutionControllerImpl {
     }
 
     /// Gets information about a batch of addresses
-    fn get_addresses_infos(&self, addresses: &[Address]) -> Vec<ExecutionAddressInfo> {
+    fn get_addresses_infos(
+        &self,
+        addresses: &[Address],
+        deferred_credits_max_slot: std::ops::Bound<Slot>,
+    ) -> Vec<ExecutionAddressInfo> {
         let mut res = Vec::with_capacity(addresses.len());
         let exec_state = self.execution_state.read();
         for addr in addresses {
@@ -441,6 +452,8 @@ impl ExecutionController for ExecutionControllerImpl {
                 exec_state.get_final_and_candidate_balance(addr);
             let (final_roll_count, candidate_roll_count) =
                 exec_state.get_final_and_candidate_rolls(addr);
+            let future_deferred_credits =
+                exec_state.get_address_future_deferred_credits(addr, deferred_credits_max_slot);
             res.push(ExecutionAddressInfo {
                 final_datastore_keys: final_datastore_keys.unwrap_or_default(),
                 candidate_datastore_keys: candidate_datastore_keys.unwrap_or_default(),
@@ -448,7 +461,7 @@ impl ExecutionController for ExecutionControllerImpl {
                 candidate_balance: candidate_balance.unwrap_or_default(),
                 final_roll_count,
                 candidate_roll_count,
-                future_deferred_credits: exec_state.get_address_future_deferred_credits(addr),
+                future_deferred_credits,
                 cycle_infos: exec_state.get_address_cycle_infos(addr),
             });
         }
@@ -458,6 +471,42 @@ impl ExecutionController for ExecutionControllerImpl {
     /// Get execution statistics
     fn get_stats(&self) -> ExecutionStats {
         self.execution_state.read().get_stats()
+    }
+
+    #[cfg(feature = "execution-trace")]
+    fn get_operation_abi_call_stack(&self, operation_id: OperationId) -> Option<Vec<AbiTrace>> {
+        self.execution_state
+            .read()
+            .trace_history
+            .read()
+            .fetch_traces_for_op(&operation_id)
+    }
+
+    #[cfg(feature = "execution-trace")]
+    fn get_slot_abi_call_stack(&self, slot: Slot) -> Option<SlotAbiCallStack> {
+        self.execution_state
+            .read()
+            .trace_history
+            .read()
+            .fetch_traces_for_slot(&slot)
+    }
+
+    #[cfg(feature = "execution-trace")]
+    fn get_transfers_for_slot(&self, slot: Slot) -> Option<Vec<Transfer>> {
+        self.execution_state
+            .read()
+            .trace_history
+            .read()
+            .fetch_transfers_for_slot(&slot)
+    }
+
+    #[cfg(feature = "execution-trace")]
+    fn get_transfer_for_op(&self, op_id: &OperationId) -> Option<Transfer> {
+        self.execution_state
+            .read()
+            .trace_history
+            .read()
+            .fetch_transfer_for_op(op_id)
     }
 
     /// Returns a boxed clone of self.

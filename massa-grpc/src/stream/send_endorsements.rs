@@ -11,7 +11,7 @@ use massa_serialization::{DeserializeError, Deserializer};
 use std::collections::HashMap;
 use std::io::ErrorKind;
 use std::pin::Pin;
-use tracing::log::{error, warn};
+use tracing::{error, warn};
 
 /// Type declaration for SendEndorsements
 pub type SendEndorsementsStreamType = Pin<
@@ -64,11 +64,13 @@ pub(crate) async fn send_endorsements(
                             .await;
                         } else {
                             // Deserialize and verify each endorsement in the incoming message
-                            let endorsement_deserializer =
-                                SecureShareDeserializer::new(EndorsementDeserializer::new(
+                            let endorsement_deserializer = SecureShareDeserializer::new(
+                                EndorsementDeserializer::new(
                                     config.thread_count,
                                     config.endorsement_count,
-                                ));
+                                ),
+                                config.chain_id,
+                            );
                             let verified_eds_res: Result<HashMap<String, SecureShareEndorsement>, GrpcError> = proto_endorsement
                                 .into_iter()
                                 .map(|proto_endorsement| {

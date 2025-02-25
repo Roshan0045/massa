@@ -170,6 +170,7 @@ impl Serializer<BlockHeader> for BlockHeaderSerializer {
     /// use massa_models::secure_share::SecureShareContent;
     /// use massa_models::{config::THREAD_COUNT, slot::Slot};
     /// use massa_hash::Hash;
+    /// use massa_models::config::CHAINID;
     /// use massa_signature::KeyPair;
     /// use massa_serialization::Serializer;
     ///
@@ -192,6 +193,7 @@ impl Serializer<BlockHeader> for BlockHeaderSerializer {
     ///        },
     ///     EndorsementSerializer::new(),
     ///     &keypair,
+    ///     *CHAINID
     ///     )
     ///     .unwrap(),
     ///     Endorsement::new_verifiable(
@@ -202,6 +204,7 @@ impl Serializer<BlockHeader> for BlockHeaderSerializer {
     ///       },
     ///     EndorsementSerializer::new(),
     ///     &keypair,
+    ///     *CHAINID
     ///     )
     ///     .unwrap(),
     ///    ],
@@ -276,6 +279,7 @@ pub struct BlockHeaderDeserializer {
     network_versions_deserializer: U32VarIntDeserializer,
     opt_deserializer: OptionDeserializer<u32, U32VarIntDeserializer>,
     block_id_deserializer: BlockIdDeserializer,
+    chain_id: u64,
 }
 
 impl BlockHeaderDeserializer {
@@ -286,6 +290,7 @@ impl BlockHeaderDeserializer {
         endorsement_count: u32,
         max_denunciations_in_block_header: u32,
         last_start_period: Option<u64>,
+        chain_id: u64,
     ) -> Self {
         Self {
             slot_deserializer: SlotDeserializer::new(
@@ -318,6 +323,7 @@ impl BlockHeaderDeserializer {
             thread_count,
             endorsement_count,
             last_start_period,
+            chain_id,
         }
     }
 }
@@ -330,6 +336,7 @@ impl Deserializer<BlockHeader> for BlockHeaderDeserializer {
     /// use massa_models::{config::THREAD_COUNT, slot::Slot, secure_share::SecureShareContent};
     /// use massa_models::endorsement::{Endorsement, EndorsementSerializer};
     /// use massa_hash::Hash;
+    /// use massa_models::config::CHAINID;
     /// use massa_signature::KeyPair;
     /// use massa_serialization::{Serializer, Deserializer, DeserializeError};
     ///
@@ -352,6 +359,7 @@ impl Deserializer<BlockHeader> for BlockHeaderDeserializer {
     ///        },
     ///     EndorsementSerializer::new(),
     ///     &keypair,
+    ///     *CHAINID
     ///     )
     ///     .unwrap(),
     ///     Endorsement::new_verifiable(
@@ -362,6 +370,7 @@ impl Deserializer<BlockHeader> for BlockHeaderDeserializer {
     ///       },
     ///     EndorsementSerializer::new(),
     ///     &keypair,
+    ///     *CHAINID
     ///     )
     ///     .unwrap(),
     ///    ],
@@ -369,7 +378,7 @@ impl Deserializer<BlockHeader> for BlockHeaderDeserializer {
     /// };
     /// let mut buffer = vec![];
     /// BlockHeaderSerializer::new().serialize(&header, &mut buffer).unwrap();
-    /// let (rest, deserialized_header) = BlockHeaderDeserializer::new(32, 9, 10, Some(0)).deserialize::<DeserializeError>(&buffer).unwrap();
+    /// let (rest, deserialized_header) = BlockHeaderDeserializer::new(32, 9, 10, Some(0), 77).deserialize::<DeserializeError>(&buffer).unwrap();
     /// assert_eq!(rest.len(), 0);
     /// let mut buffer2 = Vec::new();
     /// BlockHeaderSerializer::new().serialize(&deserialized_header, &mut buffer2).unwrap();
@@ -465,12 +474,14 @@ impl Deserializer<BlockHeader> for BlockHeaderDeserializer {
         }
 
         // Now deser the endorsements (which were light-weight serialized)
-        let endorsement_deserializer =
-            SecureShareDeserializer::new(EndorsementDeserializerLW::new(
+        let endorsement_deserializer = SecureShareDeserializer::new(
+            EndorsementDeserializerLW::new(
                 self.endorsement_count,
                 slot,
                 parents[slot.thread as usize],
-            ));
+            ),
+            self.chain_id,
+        );
 
         let parent_id = parents[slot.thread as usize];
         let (rest, endorsements): (&[u8], Vec<SecureShare<Endorsement, EndorsementId>>) = context(
@@ -603,8 +614,11 @@ impl BlockHeaderDenunciationData {
 mod test {
     use super::*;
     use massa_serialization::DeserializeError;
+    use serde_json::Value;
 
-    use crate::config::{ENDORSEMENT_COUNT, MAX_DENUNCIATIONS_PER_BLOCK_HEADER, THREAD_COUNT};
+    use crate::config::{
+        CHAINID, ENDORSEMENT_COUNT, MAX_DENUNCIATIONS_PER_BLOCK_HEADER, THREAD_COUNT,
+    };
 
     use crate::test_exports::{
         gen_block_headers_for_denunciation, gen_endorsements_for_denunciation,
@@ -639,9 +653,13 @@ mod test {
 
         assert_eq!(parents_1[1], endorsement_1.endorsed_block);
 
-        let s_endorsement_1: SecureShareEndorsement =
-            Endorsement::new_verifiable(endorsement_1, EndorsementSerializer::new(), &keypair)
-                .unwrap();
+        let s_endorsement_1: SecureShareEndorsement = Endorsement::new_verifiable(
+            endorsement_1,
+            EndorsementSerializer::new(),
+            &keypair,
+            *CHAINID,
+        )
+        .unwrap();
 
         let (slot_a, _, s_header_1, s_header_2, _) = gen_block_headers_for_denunciation(None, None);
         assert!(slot_a < slot);
@@ -668,6 +686,7 @@ mod test {
             ENDORSEMENT_COUNT,
             MAX_DENUNCIATIONS_PER_BLOCK_HEADER,
             None,
+            *CHAINID,
         );
 
         let (rem, block_header_der) = der.deserialize::<DeserializeError>(&buffer).unwrap();
@@ -697,6 +716,7 @@ mod test {
             ENDORSEMENT_COUNT,
             MAX_DENUNCIATIONS_PER_BLOCK_HEADER,
             None,
+            *CHAINID,
         );
 
         let (rem, block_header_der) = der.deserialize::<DeserializeError>(&buffer).unwrap();
@@ -737,5 +757,64 @@ mod test {
             ),
         ];
         verify_signature_batch(&batch_2).unwrap();
+    }
+
+    #[test]
+    fn test_block_header_serde() {
+        let keypair = KeyPair::generate(0).unwrap();
+
+        let slot = Slot::new(7, 1);
+        let parents_1: Vec<BlockId> = (0..THREAD_COUNT)
+            .map(|i| BlockId::generate_from_hash(Hash::compute_from(&[i])))
+            .collect();
+
+        let endorsement_1 = Endorsement {
+            slot,
+            index: 1,
+            endorsed_block: parents_1[1],
+        };
+
+        assert_eq!(parents_1[1], endorsement_1.endorsed_block);
+
+        let s_endorsement_1: SecureShareEndorsement = Endorsement::new_verifiable(
+            endorsement_1,
+            EndorsementSerializer::new(),
+            &keypair,
+            *CHAINID,
+        )
+        .unwrap();
+
+        let (slot_a, _, s_header_1, s_header_2, _) = gen_block_headers_for_denunciation(None, None);
+        assert!(slot_a < slot);
+        let de_a = Denunciation::try_from((&s_header_1, &s_header_2)).unwrap();
+        let (slot_b, _, s_endo_1, s_endo_2, _) = gen_endorsements_for_denunciation(None, None);
+        assert!(slot_b < slot);
+        let de_b = Denunciation::try_from((&s_endo_1, &s_endo_2)).unwrap();
+
+        let block_header_1 = BlockHeader {
+            current_version: 0,
+            announced_version: None,
+            slot,
+            parents: parents_1,
+            operation_merkle_root: Hash::compute_from("mno".as_bytes()),
+            endorsements: vec![s_endorsement_1],
+            denunciations: vec![de_a, de_b],
+        };
+
+        let serialized_block_header = serde_json::to_string(&block_header_1).unwrap();
+        let res_block_header: Value = serde_json::from_str(&serialized_block_header).unwrap();
+        // check equality
+        assert_eq!(
+            block_header_1.current_version,
+            res_block_header["current_version"]
+        );
+        assert_eq!(
+            block_header_1.slot.period,
+            res_block_header["slot"]["period"]
+        );
+        assert_eq!(
+            block_header_1.slot.thread,
+            res_block_header["slot"]["thread"]
+        );
     }
 }

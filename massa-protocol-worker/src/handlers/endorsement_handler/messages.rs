@@ -2,9 +2,7 @@ use massa_models::{
     endorsement::{Endorsement, EndorsementDeserializer, SecureShareEndorsement},
     secure_share::{SecureShareDeserializer, SecureShareSerializer},
 };
-use massa_serialization::{
-    Deserializer, SerializeError, Serializer, U64VarIntDeserializer, U64VarIntSerializer,
-};
+use massa_serialization::{Deserializer, Serializer, U64VarIntDeserializer, U64VarIntSerializer};
 use nom::{
     error::{context, ContextError, ParseError},
     multi::length_count,
@@ -56,12 +54,8 @@ impl Serializer<EndorsementMessage> for EndorsementMessageSerializer {
         value: &EndorsementMessage,
         buffer: &mut Vec<u8>,
     ) -> Result<(), massa_serialization::SerializeError> {
-        self.id_serializer.serialize(
-            &MessageTypeId::from(value).try_into().map_err(|_| {
-                SerializeError::GeneralError(String::from("Failed to serialize id"))
-            })?,
-            buffer,
-        )?;
+        self.id_serializer
+            .serialize(&MessageTypeId::from(value).into(), buffer)?;
         match value {
             EndorsementMessage::Endorsements(endorsements) => {
                 self.length_endorsements_serializer
@@ -80,6 +74,7 @@ pub struct EndorsementMessageDeserializerArgs {
     pub thread_count: u8,
     pub max_length_endorsements: u64,
     pub endorsement_count: u32,
+    pub chain_id: u64,
 }
 
 pub struct EndorsementMessageDeserializer {
@@ -96,10 +91,10 @@ impl EndorsementMessageDeserializer {
                 Included(0),
                 Included(args.max_length_endorsements),
             ),
-            secure_share_deserializer: SecureShareDeserializer::new(EndorsementDeserializer::new(
-                args.thread_count,
-                args.endorsement_count,
-            )),
+            secure_share_deserializer: SecureShareDeserializer::new(
+                EndorsementDeserializer::new(args.thread_count, args.endorsement_count),
+                args.chain_id,
+            ),
         }
     }
 }
@@ -141,6 +136,7 @@ impl Deserializer<EndorsementMessage> for EndorsementMessageDeserializer {
 mod tests {
     use std::str::FromStr;
 
+    use massa_models::config::CHAINID;
     use massa_models::{
         block_id::BlockId,
         endorsement::{Endorsement, EndorsementSerializer},
@@ -163,6 +159,7 @@ mod tests {
                 thread_count: 1,
                 max_length_endorsements: 0,
                 endorsement_count: 1,
+                chain_id: *CHAINID,
             });
         let (rest, deserialized_message) = deserializer
             .deserialize::<DeserializeError>(&buffer)
@@ -182,7 +179,11 @@ mod tests {
             .unwrap(),
         };
         let secure_share_endo = endorsement
-            .new_verifiable(EndorsementSerializer::new(), &KeyPair::generate(0).unwrap())
+            .new_verifiable(
+                EndorsementSerializer::new(),
+                &KeyPair::generate(0).unwrap(),
+                *CHAINID,
+            )
             .unwrap();
         let message = super::EndorsementMessage::Endorsements(vec![
             secure_share_endo.clone(),
@@ -198,6 +199,7 @@ mod tests {
                 thread_count: 32,
                 max_length_endorsements: 1,
                 endorsement_count: 16,
+                chain_id: *CHAINID,
             });
         deserializer
             .deserialize::<DeserializeError>(&buffer)

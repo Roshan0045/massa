@@ -128,6 +128,8 @@ async fn get_status() {
     assert_eq!(response.network_stats.in_connection_count, 10);
     assert_eq!(response.network_stats.out_connection_count, 5);
     assert_eq!(response.config.thread_count, 32);
+    // Chain id == 77 for Node in sandbox mode otherwise it is always greater
+    assert!(response.chain_id >= 77);
 
     api_public_handle.stop().await;
 }
@@ -448,6 +450,69 @@ async fn get_graph_interval() {
 }
 
 #[tokio::test]
+async fn send_operations_low_fee() {
+    let addr: SocketAddr = "[::]:5049".parse().unwrap();
+    let (mut api_public, mut config) = start_public_api(addr);
+
+    config.minimal_fees = Amount::from_str("0.01").unwrap();
+    api_public.0.api_settings.minimal_fees = Amount::from_str("0.01").unwrap();
+
+    let mut pool_ctrl = MockPoolController::new();
+    pool_ctrl.expect_clone_box().returning(|| {
+        let mut pool_ctrl = MockPoolController::new();
+        pool_ctrl.expect_add_operations().returning(|_a| ());
+        Box::new(pool_ctrl)
+    });
+
+    let mut protocol_ctrl = MockProtocolController::new();
+    protocol_ctrl.expect_clone_box().returning(|| {
+        let mut protocol_ctrl = MockProtocolController::new();
+        protocol_ctrl
+            .expect_propagate_operations()
+            .returning(|_a| Ok(()));
+        Box::new(protocol_ctrl)
+    });
+
+    api_public.0.protocol_controller = Box::new(protocol_ctrl);
+    api_public.0.pool_command_sender = Box::new(pool_ctrl);
+
+    let api_public_handle = api_public
+        .serve(&addr, &config)
+        .await
+        .expect("failed to start PUBLIC API");
+
+    let client = HttpClientBuilder::default()
+        .build(format!(
+            "http://localhost:{}",
+            addr.to_string().split(':').last().unwrap()
+        ))
+        .unwrap();
+    let keypair = KeyPair::generate(0).unwrap();
+
+    // send transaction
+    let operation = create_operation_with_expire_period(&keypair, u64::MAX);
+
+    let input: OperationInput = OperationInput {
+        creator_public_key: keypair.get_public_key(),
+        signature: operation.signature,
+        serialized_content: operation.serialized_data,
+    };
+
+    let response: Result<Vec<OperationId>, Error> = client
+        .request("send_operations", rpc_params![vec![input]])
+        .await;
+
+    let err = response.unwrap_err();
+
+    // op has low fee and should not be executed
+    assert!(err
+        .to_string()
+        .contains("Bad request: fee is too low provided: 0"));
+
+    api_public_handle.stop().await;
+}
+
+#[tokio::test]
 async fn send_operations() {
     let addr: SocketAddr = "[::]:5014".parse().unwrap();
     let (mut api_public, config) = start_public_api(addr);
@@ -486,7 +551,7 @@ async fn send_operations() {
 
     ////
     // send transaction
-    let operation = create_operation_with_expire_period(&keypair, 500000);
+    let operation = create_operation_with_expire_period(&keypair, u64::MAX);
 
     let input: OperationInput = OperationInput {
         creator_public_key: keypair.get_public_key(),
@@ -629,6 +694,13 @@ async fn execute_read_only_bytecode() {
                     block_info: None,
                     state_changes: massa_final_state::StateChanges::default(),
                     events: massa_execution_exports::EventStore::default(),
+                    #[cfg(feature = "execution-trace")]
+                    slot_trace: None,
+                    #[cfg(feature = "dump-block")]
+                    storage: None,
+                    deferred_credits_execution: vec![],
+                    cancel_async_message_execution: vec![],
+                    auto_sell_execution: vec![],
                 },
                 gas_cost: 100,
                 call_result: "toto".as_bytes().to_vec(),
@@ -709,6 +781,13 @@ async fn execute_read_only_call() {
                     block_info: None,
                     state_changes: massa_final_state::StateChanges::default(),
                     events: massa_execution_exports::EventStore::default(),
+                    #[cfg(feature = "execution-trace")]
+                    slot_trace: None,
+                    #[cfg(feature = "dump-block")]
+                    storage: None,
+                    deferred_credits_execution: vec![],
+                    cancel_async_message_execution: vec![],
+                    auto_sell_execution: vec![],
                 },
                 gas_cost: 100,
                 call_result: "toto".as_bytes().to_vec(),
@@ -760,7 +839,7 @@ async fn get_addresses() {
     let (mut api_public, config) = start_public_api(addr);
 
     let mut exec_ctrl = MockExecutionController::new();
-    exec_ctrl.expect_get_addresses_infos().returning(|a| {
+    exec_ctrl.expect_get_addresses_infos().returning(|a, _s| {
         a.iter()
             .map(|_addr| ExecutionAddressInfo {
                 candidate_balance: Amount::from_str("100000").unwrap(),
@@ -905,7 +984,7 @@ async fn get_datastore_entries() {
         .await
         .unwrap();
 
-    let entry = response.get(0).unwrap();
+    let entry = response.first().unwrap();
 
     assert_eq!(
         entry.candidate_value.as_ref().unwrap(),
